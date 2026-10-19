@@ -1,0 +1,38 @@
+# ProntoFix + HTTPS (Caddy сам получает бесплатный сертификат Let's Encrypt) для TrueNAS 27.
+# Замените: tank, OWNER_PASSWORD, SECRET_KEY (как в docker-compose.scale.yml).
+# Дополнительно нужны:  файл /mnt/tank/apps/prontofix/Caddyfile (образец — Caddyfile.sample)  и папки caddy_data, caddy_config.
+# На роутере пробросьте:  внешний 80 -> IP-NAS:30080   и   внешний 443 -> IP-NAS:30443
+services:
+  prontofix:
+    image: prontofix:1
+    build:
+      context: /mnt/tank/apps/prontofix/src
+      dockerfile: server/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "30800:8000"                     # прямой доступ по локальной сети (можно убрать, если не нужен)
+    environment:
+      TZ: Europe/Kyiv
+      OWNER_USERNAME: owner
+      OWNER_PASSWORD: CHANGE_ME_PASSWORD
+      SECRET_KEY: CHANGE_ME_64_RANDOM_CHARS
+      ALLOW_REGISTRATION: "1"
+      MAX_UPLOAD_MB: "200"
+      MAP_PROVIDER: osm
+      GOOGLE_MAPS_KEY: ""
+      CUSTOM_TILE_URL: ""
+    volumes:
+      - /mnt/tank/apps/prontofix/data:/data
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - prontofix
+    ports:
+      - "30080:80"
+      - "30443:443"
+    volumes:
+      - /mnt/tank/apps/prontofix/Caddyfile:/etc/caddy/Caddyfile:ro
+      - /mnt/tank/apps/prontofix/caddy_data:/data
+      - /mnt/tank/apps/prontofix/caddy_config:/config

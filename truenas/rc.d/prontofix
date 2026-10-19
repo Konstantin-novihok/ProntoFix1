@@ -1,0 +1,101 @@
+#!/bin/sh
+#
+# PROVIDE: prontofix
+# REQUIRE: NETWORKING
+# KEYWORD: shutdown
+#
+# Автозапуск сервера ProntoFix во FreeBSD-jail (TrueNAS CORE).
+# Настройки в /etc/rc.conf (меняются командой  sysrc prontofix_<имя>=значение):
+#   prontofix_enable="YES"          включить автозапуск
+#   prontofix_host="0.0.0.0"        на каком адресе слушать (за HTTPS-прокси ставьте 127.0.0.1)
+#   prontofix_port="8000"           порт
+#   prontofix_python="/usr/local/bin/python3.11"   интерпретатор (прописывает установщик)
+# Переменные самого сервера (пароль владельца, ключи карт...) — в /usr/local/etc/prontofix.conf
+
+. /etc/rc.subr
+
+name="prontofix"
+rcvar="prontofix_enable"
+load_rc_config $name
+
+: ${prontofix_enable:="NO"}
+: ${prontofix_user:="prontofix"}
+: ${prontofix_dir:="/usr/local/prontofix"}
+: ${prontofix_conf:="/usr/local/etc/prontofix.conf"}
+: ${prontofix_host:="0.0.0.0"}
+: ${prontofix_port:="8000"}
+: ${prontofix_python:="/usr/local/bin/python3"}
+: ${prontofix_log:="/var/log/prontofix.log"}
+
+pidfile="/var/run/prontofix.pid"        # pid надзирателя daemon(8): он перезапускает сервер, если тот упал
+
+start_cmd="prontofix_start"
+stop_cmd="prontofix_stop"
+status_cmd="prontofix_status"
+restart_cmd="prontofix_restart"
+
+prontofix_running()
+{
+    [ -f "$pidfile" ] && kill -0 "$(cat "$pidfile")" 2>/dev/null
+}
+
+prontofix_start()
+{
+    if prontofix_running; then
+        echo "prontofix уже запущен (pid $(cat "$pidfile"))."
+        return 0
+    fi
+    [ -f "$prontofix_conf" ] || { echo "Нет файла настроек $prontofix_conf"; return 1; }
+    touch "$prontofix_log" && chown "$prontofix_user" "$prontofix_log"
+
+    # Переменные из prontofix.conf (строки ИМЯ=значение) передаём серверу явно через env(1):
+    # так они гарантированно доходят до процесса, даже когда daemon(8) меняет пользователя.
+    set --
+    while IFS= read -r line; do
+        case "$line" in
+            [A-Z]*=*) set -- "$@" "$line" ;;
+        esac
+    done < "$prontofix_conf"
+
+    echo "Запускаю prontofix на ${prontofix_host}:${prontofix_port} ..."
+    cd "${prontofix_dir}/server" || return 1
+    /usr/sbin/daemon -r -R 5 -P "$pidfile" -u "$prontofix_user" -o "$prontofix_log" \
+        /usr/bin/env "$@" PYTHONDONTWRITEBYTECODE=1 \
+        "$prontofix_python" -m uvicorn server:app --host "$prontofix_host" --port "$prontofix_port"
+}
+
+prontofix_stop()
+{
+    if ! prontofix_running; then
+        echo "prontofix не запущен."
+        return 0
+    fi
+    echo "Останавливаю prontofix..."
+    kill -TERM "$(cat "$pidfile")"
+    n=0
+    while prontofix_running && [ $n -lt 20 ]; do
+        sleep 1
+        n=$((n + 1))
+    done
+    prontofix_running && kill -KILL "$(cat "$pidfile")" 2>/dev/null
+    rm -f "$pidfile"
+    return 0
+}
+
+prontofix_restart()
+{
+    prontofix_stop
+    prontofix_start
+}
+
+prontofix_status()
+{
+    if prontofix_running; then
+        echo "prontofix работает (pid $(cat "$pidfile"))."
+    else
+        echo "prontofix не запущен."
+        return 1
+    fi
+}
+
+run_rc_command "$1"

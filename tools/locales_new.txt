@@ -1,0 +1,309 @@
+action|Действие|Дія|Action|Ação
+active_route|Активный маршрут|Активний маршрут|Active route|Rota ativa
+actual_km|Факт, км|Факт, км|Actual km|Km real
+add_expense|Добавить расход|Додати витрату|Add expense|Adicionar despesa
+add_item|Добавить позицию|Додати позицію|Add item|Adicionar item
+add_layer|Добавить слой|Додати шар|Add layer|Adicionar camada
+add_photo_video|Фото/видео к позиции|Фото/відео до позиції|Photo/video for item|Foto/vídeo do item
+add_prepayment|Внести предоплату|Внести передоплату|Add prepayment|Adicionar pré-pagamento
+adjust|Корректировка|Коригування|Adjustment|Ajuste
+admin|Администрирование|Адміністрування|Administration|Administração
+all|Все|Усі|All|Todos
+amount|Сумма|Сума|Amount|Valor
+amount_signed|Сумма (+ или −)|Сума (+ або −)|Amount (+ or −)|Valor (+ ou −)
+analytics|Графики|Графіки|Charts|Gráficos
+analytics_hint|Выберите вид диаграммы, показатели и цвета. Можно накладывать несколько слоёв и смотреть зависимость между ними.|Оберіть вид діаграми, показники та кольори. Можна накладати кілька шарів і дивитися залежність між ними.|Choose the chart type, measures and colors. Overlay several layers to see how they depend on each other.|Escolha o tipo de gráfico, as medidas e as cores. Sobreponha camadas para ver a dependência entre elas.
+app_name|Название приложения|Назва застосунку|App name|Nome do aplicativo
+app_settings|Настройки приложения|Налаштування застосунку|App settings|Configurações do app
+arrive|Прибыл|Прибув|Arrived|Cheguei
+arrived|Прибыл на объект|Прибув на об'єкт|Arrived on site|Chegou ao local
+axis_left|Левая ось|Ліва вісь|Left axis|Eixo esquerdo
+axis_right|Правая ось|Права вісь|Right axis|Eixo direito
+bonus|Премия|Премія|Bonus|Bônus
+bonus_fine|Премия / штраф|Премія / штраф|Bonus / fine|Bônus / multa
+build_route|Построить маршрут|Побудувати маршрут|Build route|Montar rota
+by|Кто провёл|Хто провів|Done by|Feito por
+c_accent|Акцент|Акцент|Accent|Destaque
+c_accentText|Текст на акценте|Текст на акценті|Text on accent|Texto no destaque
+c_bad|Ошибка / опасность|Помилка / небезпека|Error / danger|Erro / perigo
+c_bg|Фон|Тло|Background|Fundo
+c_card|Карточки|Картки|Cards|Cartões
+c_line|Линии|Лінії|Lines|Linhas
+c_muted|Второстепенный текст|Другорядний текст|Muted text|Texto secundário
+c_ok|Успех|Успіх|Success|Sucesso
+c_text|Текст|Текст|Text|Texto
+c_warn|Предупреждение|Попередження|Warning|Aviso
+charged|Списано за услуги|Списано за послуги|Charged for services|Cobrado por serviços
+chart_table|Таблица данных графика|Таблиця даних графіка|Chart data table|Tabela de dados
+chart_type|Вид диаграммы|Вид діаграми|Chart type|Tipo de gráfico
+chart_x|По оси X (разрез)|По осі X (розріз)|X axis (group by)|Eixo X (agrupar por)
+chat|Чат|Чат|Chat|Chat
+clear|Очистить|Очистити|Clear|Limpar
+color|Цвет|Колір|Color|Cor
+company|Компания|Компанія|Company|Empresa
+consume_material|Списать материал|Списати матеріал|Use material|Usar material
+contractor_hint|Подрядчик получает заказы только после проверки документов и вашего подтверждения.|Підрядник отримує замовлення лише після перевірки документів і вашого підтвердження.|A contractor receives orders only after you check the documents and verify them.|O terceirizado só recebe pedidos depois que você verificar os documentos.
+contractors|Подрядчики|Підрядники|Contractors|Terceirizados
+copied|Скопировано|Скопійовано|Copied|Copiado
+copy|Копировать|Копіювати|Copy|Copiar
+corr_inverse|обратная|зворотна|inverse|inversa
+corr_medium|средняя связь|середній зв'язок|medium link|ligação média
+corr_strong|сильная связь|сильний зв'язок|strong link|ligação forte
+corr_weak|слабая связь|слабкий зв'язок|weak link|ligação fraca
+cost_per_km|Стоимость 1 км транспорта|Вартість 1 км транспорту|Transport cost per km|Custo de transporte por km
+cost_price|Себестоимость|Собівартість|Cost price|Custo
+costing|Себестоимость и транспорт|Собівартість і транспорт|Costing and transport|Custos e transporte
+ct_area|Область|Область|Area|Área
+ct_bar|Столбцы|Стовпці|Bars|Barras
+ct_combo|Комбинированный (слои)|Комбінований (шари)|Combined (layers)|Combinado (camadas)
+ct_donut|Кольцевая|Кільцева|Donut|Rosca
+ct_hbar|Горизонтальные столбцы|Горизонтальні стовпці|Horizontal bars|Barras horizontais
+ct_line|Линия|Лінія|Line|Linha
+ct_pie|Круговая|Кругова|Pie|Pizza
+ct_scatter|Зависимость (точки)|Залежність (точки)|Dependency (scatter)|Dependência (dispersão)
+ct_stacked|Столбцы с накоплением|Стовпці з накопиченням|Stacked bars|Barras empilhadas
+currency|Валюта|Валюта|Currency|Moeda
+date|Дата|Дата|Date|Data
+delete|Удалить|Видалити|Delete|Excluir
+dim_client_company|Компания заказчика|Компанія замовника|Client company|Empresa do cliente
+dim_date|Дата|Дата|Date|Data
+dim_department|Направление|Напрям|Department|Departamento
+dim_employment|Занятость|Зайнятість|Employment|Vínculo
+dim_executor|Исполнитель|Виконавець|Executor|Executor
+dim_executor_company|Компания исполнителя|Компанія виконавця|Executor company|Empresa do executor
+dim_hour|Время (час суток)|Час (година доби)|Time (hour of day)|Hora (do dia)
+dim_month|Месяц|Місяць|Month|Mês
+dim_service_type|Вид услуги|Вид послуги|Service type|Tipo de serviço
+dim_status|Статус|Статус|Status|Status
+dim_week|Неделя|Тиждень|Week|Semana
+dim_weekday|День недели|День тижня|Weekday|Dia da semana
+earned|Начислено|Нараховано|Earned|Ganho
+edit|Изменить|Змінити|Edit|Editar
+emp_external|Подрядчик|Підрядник|Contractor|Terceirizado
+emp_internal|Штат|Штат|Staff|Equipe própria
+employee|Сотрудник|Співробітник|Employee|Funcionário
+employee_no|Табельный номер|Табельний номер|Employee number|Nº de funcionário
+employee_no_hint|Идентификация штатного сотрудника по правилам компании|Ідентифікація штатного співробітника за правилами компанії|Identification of staff by company rules|Identificação do funcionário pelas regras da empresa
+employment|Занятость|Зайнятість|Employment|Vínculo
+estimated|оценка|оцінка|estimate|estimativa
+exp_material|Материал|Матеріал|Material|Material
+exp_other|Прочее|Інше|Other|Outros
+exp_transport|Транспорт|Транспорт|Transport|Transporte
+expires|Действует до|Діє до|Valid until|Válido até
+external|Подрядчик|Підрядник|Contractor|Terceirizado
+file|Файл|Файл|File|Arquivo
+files|Хранилище файлов|Сховище файлів|File storage|Armazenamento de arquivos
+files_count|Файлов|Файлів|Files|Arquivos
+files_hint|Все файлы сервера: заказы, документы, чат, склад. Сортировка — по заголовку столбца. Администратор может удалить любой файл.|Усі файли сервера: замовлення, документи, чат, склад. Сортування — за заголовком стовпця. Адміністратор може видалити будь-який файл.|All server files: orders, documents, chat, warehouse. Click a column header to sort. An administrator can delete any file.|Todos os arquivos do servidor: pedidos, documentos, chat, armazém. Clique no cabeçalho para ordenar. O administrador pode excluir qualquer arquivo.
+filters|Фильтры|Фільтри|Filters|Filtros
+finance|Финансы|Фінанси|Finance|Finanças
+fine|Штраф|Штраф|Fine|Multa
+finish_route|Завершить маршрут|Завершити маршрут|Finish route|Finalizar rota
+font|Шрифт|Шрифт|Font|Fonte
+from|С|З|From|De
+from_employee|От сотрудника|Від співробітника|From employee|Do funcionário
+geo_verified|координаты уточнены по GPS|координати уточнено за GPS|location refined by GPS|localização refinada por GPS
+id_rules|Правила идентификации (текст для сотрудников)|Правила ідентифікації (текст для співробітників)|Identification rules (text for staff)|Regras de identificação (texto)
+id_rules_hint|Свободный текст правил вашей компании для штатных сотрудников и подрядчиков.|Вільний текст правил вашої компанії для штатних співробітників і підрядників.|Free text of your company rules for staff and contractors.|Texto livre das regras da empresa para equipe e terceirizados.
+identification|Идентификация сотрудников|Ідентифікація співробітників|Staff identification|Identificação de funcionários
+in_warehouse|На складе|На складі|In warehouse|No armazém
+invite_code|Код приглашения|Код запрошення|Invite code|Código de convite
+invite_contractor|Пригласить подрядчика|Запросити підрядника|Invite contractor|Convidar terceirizado
+invite_days|Срок действия, дней|Термін дії, днів|Valid for, days|Validade, dias
+invite_hint|Если вас пригласила компания как подрядчика — введите код приглашения, укажите компанию и ИНН.|Якщо вас запросила компанія як підрядника — введіть код запрошення, вкажіть компанію та ІПН.|If a company invited you as a contractor, enter the invite code and fill in the company and tax ID.|Se uma empresa convidou você como terceirizado, informe o código, a empresa e o ID fiscal.
+invites|Приглашения|Запрошення|Invitations|Convites
+item|Позиция|Позиція|Item|Item
+kind|Тип|Тип|Type|Tipo
+km|Км|Км|Km|Km
+last_seen|Последний раз в сети|Востаннє в мережі|Last seen|Visto por último
+layers|Слои|Шари|Layers|Camadas
+layers_hint|накладывайте показатели, у каждого свой цвет|накладайте показники, кожен має свій колір|overlay measures, each with its own color|sobreponha medidas, cada uma com sua cor
+ledger|Проводки|Проводки|Ledger|Lançamentos
+lk_area|Область|Область|Area|Área
+lk_bar|Столбцы|Стовпці|Bars|Barras
+lk_line|Линия|Лінія|Line|Linha
+load_earlier|Загрузить раньше|Завантажити раніше|Load earlier|Carregar anteriores
+low_stock|Мало на складе|Мало на складі|Low stock|Estoque baixo
+map|Карта|Мапа|Map|Mapa
+map_hint|Нажмите на метку заказа и выберите его. Затем постройте маршрут или возьмите заказы в работу.|Натисніть на мітку замовлення та оберіть його. Потім побудуйте маршрут або візьміть замовлення в роботу.|Tap an order marker and select it. Then build a route or take the orders into work.|Toque no marcador do pedido e selecione. Depois monte a rota ou assuma os pedidos.
+map_unavailable|Карта недоступна (нет интернета).|Мапа недоступна (немає інтернету).|Map unavailable (no internet).|Mapa indisponível (sem internet).
+margin|Маржа|Маржа|Margin|Margem
+materials|Материалы|Матеріали|Materials|Materiais
+measured|замер GPS|замір GPS|measured by GPS|medido por GPS
+min_qty|Мин. остаток|Мін. залишок|Min. stock|Estoque mínimo
+mode_dark|Тёмный|Темний|Dark|Escuro
+mode_light|Светлый|Світлий|Light|Claro
+ms_charged_total|Списано предоплаты|Списано передоплати|Prepayment charged|Pré-pagamento cobrado
+ms_cost|Себестоимость|Собівартість|Cost price|Custo
+ms_count|Число заказов|Кількість замовлень|Orders count|Número de pedidos
+ms_hours|Часы работы|Години роботи|Work hours|Horas de trabalho
+ms_km|Километры|Кілометри|Kilometers|Quilômetros
+ms_margin|Маржа|Маржа|Margin|Margem
+ms_materials|Материалы|Матеріали|Materials|Materiais
+ms_pay|Оплата исполнителям|Оплата виконавцям|Executor pay|Pagamento a executores
+ms_prepaid_total|Внесено предоплаты|Внесено передоплати|Prepaid total|Total pré-pago
+ms_prepay_balance|Остаток предоплаты|Залишок передоплати|Prepayment balance|Saldo de pré-pagamento
+ms_price|Выручка (цена услуг)|Виручка (ціна послуг)|Revenue (service price)|Receita (preço)
+ms_rating|Средняя оценка|Середня оцінка|Average rating|Avaliação média
+ms_transport|Транспорт|Транспорт|Transport|Transporte
+msg_deleted|сообщение удалено|повідомлення видалено|message deleted|mensagem excluída
+mv_consume|Списать на заказ|Списати на замовлення|Use on order|Usar no pedido
+mv_receipt|Поступление|Надходження|Receipt|Entrada
+mv_return|Вернуть на склад|Повернути на склад|Return to warehouse|Devolver ao armazém
+mv_take|Взять со склада|Взяти зі складу|Take from warehouse|Retirar do armazém
+mv_transfer|Передать сотруднику|Передати співробітнику|Transfer to employee|Transferir ao funcionário
+mv_writeoff|Списание (брак, потеря)|Списання (брак, втрата)|Write-off|Baixa
+my_finance|Моя предоплата|Моя передоплата|My prepayment|Meu pré-pagamento
+my_pay|Моя оплата|Моя оплата|My pay|Meu pagamento
+navigate|Навигация|Навігація|Navigate|Navegar
+need_two_layers|Для графика зависимости добавьте минимум два слоя|Для графіка залежності додайте щонайменше два шари|Add at least two layers for a dependency chart|Adicione pelo menos duas camadas
+no_documents|нет документов|немає документів|no documents|sem documentos
+no_location|нет данных о положении|немає даних про положення|no location data|sem localização
+no_materials_on_hand|У вас нет материалов на руках — возьмите их на складе|У вас немає матеріалів на руках — візьміть їх на складі|You have no materials on hand — take them from the warehouse|Você não tem materiais — retire no armazém
+not_settled|не рассчитан|не розраховано|not settled|não liquidado
+note|Примечание|Примітка|Note|Observação
+on_me|У меня|У мене|On me|Comigo
+one_per_line|По одному на строку|По одному в рядку|One per line|Um por linha
+only_in_warehouse|Только на складе|Лише на складі|Only in the warehouse|Somente no armazém
+order|Заказ|Замовлення|Order|Pedido
+orders_count|Заказов|Замовлень|Orders|Pedidos
+other|Прочее|Інше|Other|Outros
+own_company|Название вашей компании|Назва вашої компанії|Your company name|Nome da sua empresa
+pay|Оплата исполнителю|Оплата виконавцю|Executor pay|Pagamento ao executor
+payroll|Оплата сотрудников|Оплата співробітників|Payroll|Folha de pagamento
+payroll_hint|Штат: фиксированная ставка (в час или за заказ). Подрядчики: процент от прибыли заказа. Премии и штрафы — отдельно.|Штат: фіксована ставка (за годину або за замовлення). Підрядники: відсоток від прибутку замовлення. Премії та штрафи — окремо.|Staff: fixed rate (hourly or per order). Contractors: percent of the order profit. Bonuses and fines are separate.|Equipe: taxa fixa (por hora ou por pedido). Terceirizados: percentual do lucro. Bônus e multas à parte.
+pending_verification|Ваш аккаунт ожидает проверки администратором — заказы будут доступны после подтверждения.|Ваш обліковий запис очікує перевірки адміністратором — замовлення будуть доступні після підтвердження.|Your account is awaiting administrator verification — orders become available after approval.|Sua conta aguarda verificação — os pedidos ficarão disponíveis após a aprovação.
+percent_of_profit|% от прибыли|% від прибутку|% of profit|% do lucro
+planned_km|План, км|План, км|Planned km|Km planejado
+prepaid|Внесено предоплаты|Внесено передоплати|Prepaid total|Total pré-pago
+prepay_balance|Остаток предоплаты|Залишок передоплати|Prepayment balance|Saldo de pré-pagamento
+presets|Сохранённые настройки|Збережені налаштування|Saved presets|Configurações salvas
+purchase_price|Закупочная цена|Закупівельна ціна|Purchase price|Preço de compra
+qty|Количество|Кількість|Quantity|Quantidade
+rate_hourly|Почасовая|Погодинна|Hourly|Por hora
+rate_per_order|За заказ|За замовлення|Per order|Por pedido
+rate_percent|% от прибыли|% від прибутку|% of profit|% do lucro
+rate_type|Тип ставки|Тип ставки|Rate type|Tipo de taxa
+read_only|Вы можете только читать чат|Ви можете лише читати чат|You can only read the chat|Você só pode ler o chat
+rep_finance|Предоплата и проводки|Передоплата і проводки|Prepayment and ledger|Pré-pagamento e lançamentos
+rep_finance_d|Остатки по заказчикам и все проводки|Залишки по замовниках і всі проводки|Balances per client and all entries|Saldos por cliente e lançamentos
+rep_orders|Заказы|Замовлення|Orders|Pedidos
+rep_orders_d|Все заказы: компания заказчика, компания исполнителя, деньги, километры|Усі замовлення: компанія замовника, компанія виконавця, гроші, кілометри|All orders: client company, executor company, money, km|Todos os pedidos: empresa do cliente e do executor, valores, km
+rep_payroll|Оплата сотрудников|Оплата співробітників|Payroll|Folha
+rep_payroll_d|Штат и подрядчики, премии и штрафы|Штат і підрядники, премії та штрафи|Staff and contractors, bonuses and fines|Equipe e terceirizados, bônus e multas
+rep_routes|Маршруты и километры|Маршрути та кілометри|Routes and km|Rotas e km
+rep_routes_d|Маршруты исполнителей, план и факт|Маршрути виконавців, план і факт|Executor routes, planned vs actual|Rotas dos executores, planejado e real
+rep_warehouse|Движение склада|Рух складу|Warehouse movements|Movimentação do armazém
+rep_warehouse_d|Поступления, выдачи, передачи, списания|Надходження, видачі, передачі, списання|Receipts, issues, transfers, write-offs|Entradas, saídas, transferências, baixas
+reports|Отчёты Excel|Звіти Excel|Excel reports|Relatórios Excel
+reports_hint|Отчёт формируется в Excel. При сохранении вы сами выбираете место на устройстве или носителе.|Звіт формується в Excel. Під час збереження ви самі обираєте місце на пристрої чи носії.|Reports are built in Excel. When saving, you choose the folder or storage on your device.|Os relatórios são gerados em Excel. Ao salvar, você escolhe a pasta ou mídia no dispositivo.
+road_factor|Коэффициент дорожной сети|Коефіцієнт дорожньої мережі|Road network factor|Fator da malha viária
+road_factor_hint|Во сколько раз путь по дорогам длиннее прямой (обычно 1.2–1.5). Реальные замеры GPS уточняют оценку.|У скільки разів шлях дорогами довший за пряму (зазвичай 1.2–1.5). Реальні заміри GPS уточнюють оцінку.|How much longer roads are than a straight line (usually 1.2–1.5). Real GPS measurements refine the estimate.|Quanto as estradas são mais longas que a linha reta (1.2–1.5). Medições reais de GPS refinam a estimativa.
+role_admin|Администратор|Адміністратор|Administrator|Administrador
+route_active|В пути|У дорозі|Active|Ativa
+route_done|Завершён|Завершено|Finished|Finalizada
+route_finished|Маршрут завершён|Маршрут завершено|Route finished|Rota finalizada
+route_started|Маршрут начат|Маршрут розпочато|Route started|Rota iniciada
+routes|Маршруты|Маршрути|Routes|Rotas
+save_as|Сохранить как…|Зберегти як…|Save as…|Salvar como…
+save_preset|Сохранить настройки|Зберегти налаштування|Save preset|Salvar configuração
+save_xlsx|Сформировать и сохранить|Сформувати та зберегти|Build and save|Gerar e salvar
+search|Поиск|Пошук|Search|Buscar
+select_toggle|Выбрать / снять|Обрати / зняти|Select / unselect|Selecionar / desmarcar
+selected_orders|Выбрано заказов|Обрано замовлень|Selected orders|Pedidos selecionados
+sender|Отправитель|Відправник|Sender|Remetente
+server_change|Сменить сервер|Змінити сервер|Change server|Trocar servidor
+service_type|Вид услуги|Вид послуги|Service type|Tipo de serviço
+service_types|Виды услуг|Види послуг|Service types|Tipos de serviço
+set_price_first|Сначала укажите цену услуги|Спершу вкажіть ціну послуги|Set the service price first|Defina o preço do serviço primeiro
+settle|Рассчитать (списать с предоплаты)|Розрахувати (списати з передоплати)|Settle (charge prepayment)|Liquidar (cobrar do pré-pagamento)
+settle_confirm|Списать цену услуги с предоплаты заказчика и начислить оплату исполнителю? Действие необратимо.|Списати ціну послуги з передоплати замовника та нарахувати оплату виконавцю? Дія незворотна.|Charge the service price to the client's prepayment and accrue the executor's pay? This cannot be undone.|Cobrar o preço do pré-pagamento do cliente e creditar o executor? Isso não pode ser desfeito.
+settled|Рассчитан|Розраховано|Settled|Liquidado
+share_chat|Показать в чате|Показати в чаті|Share in chat|Compartilhar no chat
+share_item|Поделиться деталью|Поділитися деталлю|Share an item|Compartilhar item
+share_location|Поделиться местом|Поділитися місцем|Share location|Compartilhar local
+shared_location|Делится местоположением|Ділиться місцезнаходженням|Shared a location|Compartilhou a localização
+shared_to_chat|Отправлено в чат|Надіслано в чат|Sent to chat|Enviado ao chat
+show_on_map|Показать на карте|Показати на мапі|Show on map|Mostrar no mapa
+size|Размер|Розмір|Size|Tamanho
+skin_apply|Применить сейчас|Застосувати зараз|Apply now|Aplicar agora
+skin_auto|Авто (как в системе)|Авто (як у системі)|Auto (system)|Auto (sistema)
+skin_builtin|Готовые скины|Готові скіни|Built-in skins|Skins prontos
+skin_create|Создать свой скин|Створити свій скін|Create my skin|Criar meu skin
+skin_default_all|Сделать по умолчанию для всех|Зробити типовим для всіх|Set as default for everyone|Padrão para todos
+skin_mine|Мои скины|Мої скіни|My skins|Meus skins
+skin_mode|Режим|Режим|Mode|Modo
+skin_name|Название скина|Назва скіна|Skin name|Nome do skin
+skin_note_layout|Скин меняет только цвета и шрифт. Масштаб, расположение кнопок и значков, функции и логика приложения не меняются.|Скін змінює лише кольори та шрифт. Масштаб, розташування кнопок і значків, функції та логіка застосунку не змінюються.|A skin changes only colors and font. Scale, placement of buttons and icons, features and logic never change.|O skin altera apenas cores e fonte. Escala, posição de botões e ícones, funções e lógica nunca mudam.
+skin_palette|Палитра цветов|Палітра кольорів|Color palette|Paleta de cores
+skin_preview|Образец текста|Зразок тексту|Sample text|Texto de exemplo
+skin_save|Сохранить скин|Зберегти скін|Save skin|Salvar skin
+skin_share|Опубликовать для всех|Опублікувати для всіх|Publish for everyone|Publicar para todos
+skin_shared|Общие скины|Спільні скіни|Shared skins|Skins compartilhados
+skins|Скины и оформление|Скіни та оформлення|Skins and appearance|Skins e aparência
+sku|Артикул|Артикул|SKU|SKU
+source|Источник|Джерело|Source|Origem
+src_chat|Чат|Чат|Chat|Chat
+src_document|Документы|Документи|Documents|Documentos
+src_order|Заказы|Замовлення|Orders|Pedidos
+src_warehouse|Склад|Склад|Warehouse|Armazém
+staff_directory|Сотрудники|Співробітники|Staff|Equipe
+staff_map|Сотрудники на карте|Співробітники на мапі|Staff on map|Equipe no mapa
+start_tracking_q|Включить трекинг положения для точного расчёта километров?|Увімкнути трекінг положення для точного розрахунку кілометрів?|Turn on location tracking for accurate kilometers?|Ativar rastreamento para calcular os km com precisão?
+stop_tracking_q|Выключить трекинг?|Вимкнути трекінг?|Stop tracking?|Parar o rastreamento?
+stops|Заездов|Заїздів|Stops|Paradas
+take_and_start|Взять в работу и начать маршрут|Взяти в роботу й почати маршрут|Take into work and start route|Assumir e iniciar a rota
+tax_id|ИНН / рег. номер|ІПН / реєстр. номер|Tax ID|ID fiscal
+tile_analytics|Диаграммы по всем заказам|Діаграми за всіма замовленнями|Charts for all orders|Gráficos de todos os pedidos
+tile_audit|Журнал всех действий|Журнал усіх дій|Log of all actions|Registro de ações
+tile_contractors|Приглашение и проверка|Запрошення та перевірка|Invite and verify|Convidar e verificar
+tile_departments|Направления и начальники|Напрями та начальники|Departments and heads|Departamentos e chefes
+tile_files|Все файлы, удаление|Усі файли, видалення|All files, deletion|Todos os arquivos
+tile_finance|Предоплата заказчиков|Передоплата замовників|Client prepayments|Pré-pagamentos
+tile_payroll|Ставки, премии, штрафы|Ставки, премії, штрафи|Rates, bonuses, fines|Taxas, bônus, multas
+tile_reports|Выгрузка в Excel|Вивантаження в Excel|Export to Excel|Exportar para Excel
+tile_routes|Километраж и поездки|Кілометраж і поїздки|Mileage and trips|Quilometragem e viagens
+tile_settings|Стоимость км, услуги, правила|Вартість км, послуги, правила|Cost per km, services, rules|Custo por km, serviços, regras
+tile_skins|Цвета, шрифты, название|Кольори, шрифти, назва|Colors, fonts, name|Cores, fontes, nome
+tile_staffmap|Где сейчас сотрудники|Де зараз співробітники|Where staff are now|Onde está a equipe
+tile_users|Роли, права, профили|Ролі, права, профілі|Roles, rights, profiles|Funções, direitos, perfis
+tile_warehouse|Материалы и оборудование|Матеріали та обладнання|Materials and equipment|Materiais e equipamentos
+to|По|По|To|Até
+to_employee|Сотруднику|Співробітнику|To employee|Ao funcionário
+top_n|Показать первых (0 = все)|Показати перших (0 = усі)|Show top (0 = all)|Mostrar os primeiros (0 = todos)
+total|Итого|Разом|Total|Total
+total_km|Всего км|Усього км|Total km|Total km
+total_size|Общий размер|Загальний розмір|Total size|Tamanho total
+track_today|Трек за сегодня|Трек за сьогодні|Today's track|Trajeto de hoje
+tracking|Трекинг положения|Трекінг положення|Location tracking|Rastreamento de localização
+tracking_hint|Пока включён, положение записывается и отправляется на сервер: по нему считаются фактические километры, а администратор видит вас на карте. Держите приложение открытым; экран не гаснет.|Поки ввімкнено, положення записується й надсилається на сервер: за ним рахуються фактичні кілометри, а адміністратор бачить вас на мапі. Тримайте застосунок відкритим; екран не гасне.|While on, your position is recorded and sent to the server: actual kilometers are calculated and the administrator sees you on the map. Keep the app open; the screen stays on.|Enquanto ativo, sua posição é gravada e enviada ao servidor: os km reais são calculados e o administrador vê você no mapa. Mantenha o app aberto; a tela fica ligada.
+tracking_on|Включить трекинг|Увімкнути трекінг|Enable tracking|Ativar rastreamento
+transport|Транспорт|Транспорт|Transport|Transporte
+transport_cost|Стоимость транспорта|Вартість транспорту|Transport cost|Custo de transporte
+tx_adjust|Корректировка|Коригування|Adjustment|Ajuste
+tx_charge|Списание за услугу|Списання за послугу|Service charge|Cobrança do serviço
+tx_prepayment|Предоплата|Передоплата|Prepayment|Pré-pagamento
+unit|Ед. изм.|Од. вим.|Unit|Unidade
+used_by|Использовал|Використав|Used by|Usado por
+ver_pending|На проверке|На перевірці|Pending|Pendente
+ver_rejected|Отклонён|Відхилено|Rejected|Rejeitado
+ver_verified|Проверен|Перевірено|Verified|Verificado
+verify|Проверка подрядчика|Перевірка підрядника|Verify contractor|Verificar terceirizado
+warehouse|Склад|Склад|Warehouse|Armazém
+wd_0|Пн|Пн|Mon|Seg
+wd_1|Вт|Вт|Tue|Ter
+wd_2|Ср|Ср|Wed|Qua
+wd_3|Чт|Чт|Thu|Qui
+wd_4|Пт|Пт|Fri|Sex
+wd_5|Сб|Сб|Sat|Sáb
+wd_6|Вс|Нд|Sun|Dom
+wh_equipment|Оборудование|Обладнання|Equipment|Equipamento
+wh_items|Позиции|Позиції|Items|Itens
+wh_material|Материал|Матеріал|Material|Material
+wh_mine|У меня на руках|У мене на руках|On hand|Comigo
+wh_moves|Движение|Рух|Movements|Movimentação
+where_is_it|Где находится|Де знаходиться|Where is it|Onde está
+who_has_it|У кого эта позиция|У кого ця позиція|Who has it|Quem tem
+with_staff|У сотрудников|У співробітників|With staff|Com a equipe
+work_profile|Рабочий профиль|Робочий профіль|Work profile|Perfil de trabalho
+you_are_here|Вы здесь|Ви тут|You are here|Você está aqui

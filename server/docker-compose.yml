@@ -1,0 +1,22 @@
+# Запуск в Docker (Linux-виртуалка, TrueNAS SCALE, любой Linux-сервер):  docker compose up -d
+# ВНИМАНИЕ: в TrueNAS CORE Docker нет — используйте jail (truenas/install_in_jail.sh) или Linux-виртуалку.
+services:
+  repair-server:
+    build:
+      context: ..            # корень проекта (нужна папка web/)
+      dockerfile: server/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      OWNER_USERNAME: "owner"          # логин суперпользователя (создаётся при первом старте)
+      OWNER_PASSWORD: "${OWNER_PASSWORD:?Создайте файл .env рядом и впишите строку OWNER_PASSWORD=ваш_пароль}"
+      ALLOW_REGISTRATION: "1"          # 1 = заказчики могут регистрироваться сами
+      # --- Карты (раздаются приложению через /config) ---
+      MAP_PROVIDER: "google"           # google | osm | custom | offline
+      GOOGLE_MAPS_KEY: ""              # ключ Google Map Tiles API (ограничьте его в Google Cloud Console)
+      CUSTOM_TILE_URL: ""              # для custom: https://tiles.example.com/{z}/{x}/{y}.png
+      SECRET_KEY: "${SECRET_KEY:-}"    # ключ подписи токенов и шифрования паспортных данных (СОХРАНИТЕ его!)
+      # DATABASE_URL: "postgresql+psycopg2://user:pass@host/db"  # по умолчанию SQLite в /data
+    volumes:
+      - ${DATA_PATH:-./data}:/data     # БД, фото/видео, документы. На TrueNAS SCALE: DATA_PATH=/mnt/<пул>/prontofix/data (в файле .env)

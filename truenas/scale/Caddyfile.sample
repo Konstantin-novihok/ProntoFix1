@@ -1,0 +1,12 @@
+# Сохраните как /mnt/tank/apps/prontofix/Caddyfile  (замените домен и e-mail)
+{
+	email you@example.com
+}
+
+service.example.com {
+	encode gzip
+	request_body {
+		max_size 250MB
+	}
+	reverse_proxy prontofix:8000
+}

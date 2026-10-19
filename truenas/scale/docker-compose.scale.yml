@@ -1,0 +1,27 @@
+# ProntoFix для TrueNAS 27 (Apps -> Discover -> ⋮ рядом с Custom App -> Install via YAML).
+# ПЕРЕД ВСТАВКОЙ замените:
+#   1) tank           -> имя вашего пула
+#   2) OWNER_PASSWORD -> ваш пароль владельца (латиница и цифры, от 6 символов)
+#   3) SECRET_KEY     -> длинная случайная строка (64 символа); СОХРАНИТЕ её: без неё паспорта не расшифровать
+# Папки на NAS:  /mnt/tank/apps/prontofix/src  (папки server и web)   и   /mnt/tank/apps/prontofix/data  (данные)
+services:
+  prontofix:
+    image: prontofix:1                   # при обновлении программы увеличьте номер (prontofix:2) — образ соберётся заново
+    build:
+      context: /mnt/tank/apps/prontofix/src
+      dockerfile: server/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "30800:8000"                     # адрес: http://IP-NAS:30800/app/
+    environment:
+      TZ: Europe/Kyiv
+      OWNER_USERNAME: owner
+      OWNER_PASSWORD: CHANGE_ME_PASSWORD
+      SECRET_KEY: CHANGE_ME_64_RANDOM_CHARS
+      ALLOW_REGISTRATION: "1"            # 1 = заказчики регистрируются сами, 0 = только владелец создаёт пользователей
+      MAX_UPLOAD_MB: "200"
+      MAP_PROVIDER: osm                  # osm | google | custom
+      GOOGLE_MAPS_KEY: ""                # для google: ключ Google Map Tiles API
+      CUSTOM_TILE_URL: ""                # для custom: https://tiles.example.com/{z}/{x}/{y}.png
+    volumes:
+      - /mnt/tank/apps/prontofix/data:/data

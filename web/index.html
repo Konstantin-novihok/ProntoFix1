@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#2f6fed">
+  <title>Home Master</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="#/orders" id="brand">🛠 Home Master</a>
+    <span id="gps-badge" class="gps-badge" hidden>● GPS</span>
+    <select id="lang" aria-label="language"></select>
+    <button id="logout" class="ghost" hidden></button>
+  </header>
+  <nav id="nav" class="nav"></nav>
+  <main id="view" class="container"></main>
+  <div id="modals"></div>
+  <div id="toasts"></div>
+  <!-- Порядок важен: ядро → устройства → оформление → экраны -->
+  <script src="core.js"></script>
+  <script src="devices.js"></script>
+  <script src="skins.js"></script>
+  <script src="views.js"></script>
+  <script src="field.js"></script>
+  <script src="warehouse.js"></script>
+  <script src="chat.js"></script>
+  <script src="admin.js"></script>
+  <script src="charts.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
