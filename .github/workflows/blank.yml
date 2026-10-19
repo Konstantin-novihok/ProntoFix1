@@ -59,7 +59,7 @@ jobs:
           export KEYSTORE="$RUNNER_TEMP/prontofix-ci.keystore"
           export KS_PASS="$(openssl rand -hex 24)"
           export KEY_ALIAS=prontofix-ci
-          ./build_apk.sh
+          bash ./build_apk.sh
           test -s HomeMaster.apk
           apksigner verify --verbose HomeMaster.apk
           aapt dump badging HomeMaster.apk | grep -E '^(package|sdkVersion|targetSdkVersion|application-label:)'
