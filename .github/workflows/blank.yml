@@ -23,16 +23,17 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: server/requirements.txt
-      - name: Install server dependencies
-        run: python -m pip install --upgrade pip && pip install -r server/requirements.txt
+      - name: Install server and test dependencies
+        run: python -m pip install --upgrade pip && pip install -r server/requirements.txt httpx
       - name: Check locale files
         run: python tools/check_locales.py
       - name: Run server tests
+        working-directory: server
         env:
           PYTHONPATH: .
         run: |
-          python tools/test_server.py
-          python tools/test_server2.py
+          python ../tools/test_server.py
+          python ../tools/test_server2.py
 
   android-apk:
     name: Build and verify Android APK
