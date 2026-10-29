@@ -173,6 +173,16 @@ class Order(Base):
     geo_verified: Mapped[bool] = mapped_column(Boolean, default=False)           # координаты уточнены по GPS исполнителя
 
 
+class OrderSyncKey(Base):
+    """Idempotency receipt for orders created by retrying/offline clients."""
+    __tablename__ = "order_sync_keys"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    client_key: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), index=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=now)
+
+
 class Comment(Base):
     __tablename__ = "comments"
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -752,8 +762,21 @@ def list_orders(status: Optional[str] = None, user: User = Depends(current_user)
 
 
 @app.post("/orders")
-def create_order(b: OrderIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def create_order(b: OrderIn, request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Create order. X-Client-Request-ID makes offline retries idempotent."""
     need(user, OWNER, ADMIN, HEAD, CLIENT, STAFF)
+    client_key = (request.headers.get("x-client-request-id") or "").strip()
+    if client_key:
+        if len(client_key) > 80:
+            raise HTTPException(400, "X-Client-Request-ID must be at most 80 characters")
+        receipt = db.scalar(select(OrderSyncKey).where(OrderSyncKey.client_key == client_key))
+        if receipt:
+            if receipt.user_id != user.id:
+                raise HTTPException(409, "Request ID already belongs to another account")
+            existing = db.get(Order, receipt.order_id)
+            if not existing:
+                raise HTTPException(409, "Idempotency receipt points to a missing order")
+            return order_out(db, existing, user)
     if user.role == CLIENT:
         client_id = user.id
     elif user.role == STAFF:
@@ -767,6 +790,8 @@ def create_order(b: OrderIn, user: User = Depends(current_user), db: Session = D
         o.department_id = user.department_id
     db.add(o)
     db.flush()
+    if client_key:
+        db.add(OrderSyncKey(user_id=user.id, client_key=client_key, order_id=o.id))
     log(db, user, "create_order", "order", o.id, o.title)
     db.commit()
     return order_out(db, o, user)
