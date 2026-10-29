@@ -79,7 +79,7 @@ route('register', (invite) => {
 
 // ───────────── Список заказов ─────────────
 route('orders', async () => {
-  const orders = await api('GET', '/orders');
+  const orders = await api('GET', '/orders');\n  const queued = outboxRead().filter(x => x.owner === queueOwner() && x.state !== 'synced');
   const filter = h('select', {onchange: () => draw()}, h('option', {value: ''}, `${t('status')}: *`), STATUSES.map((s) => h('option', {value: s}, t('st_' + s))));
   const q = h('input', {placeholder: t('search'), oninput: () => draw(), style: 'max-width:220px'});
   const list = h('div', {});
@@ -93,7 +93,7 @@ route('orders', async () => {
   };
   draw();
   const pending = S.me.verification === 'pending' ? h('div', {class: 'card warn'}, t('pending_verification')) : null;
-  return h('div', {}, pending, h('div', {class: 'row'}, h('h1', {class: 'grow'}, t('orders')), q, filter, h('button', {class: 'ghost', onclick: () => render()}, t('refresh'))), list);
+  const queuedBox = queued.length ? h('div', {class: 'card warn'}, h('b', {}, 'Локальная очередь: ' + queued.length), h('p', {class: 'muted small'}, 'Заявки сохранены на этом устройстве и ожидают синхронизации. Не очищайте данные приложения.'), ...queued.map(item => h('div', {class: 'row'}, h('span', {class: 'grow'}, (item.payload.title || 'Заявка') + ' · ' + (item.state === 'error' ? 'ошибка синхронизации' : 'ожидает отправки')), h('button', {class: 'ghost small', onclick: guard(async () => { if(!await confirmBox('Удалить локальную заявку из очереди?'))return; outboxWrite(outboxRead().filter(x=>x.id!==item.id)); render(); })}, 'Удалить'))), h('button', {class: 'ghost', onclick: guard(async()=>{await syncOrderOutbox();render();})}, 'Синхронизировать'));\n  syncOrderOutbox().catch(()=>{});\n  return h('div', {}, pending, queuedBox, h('div', {class: 'row'}, h('h1', {class: 'grow'}, t('orders')), q, filter, h('button', {class: 'ghost', onclick: () => render()}, t('refresh'))), list);
 });
 
 // ───────────── Файлы заказа: показ ─────────────
