@@ -1,7 +1,7 @@
 package org.prontofix.app;
 
 import android.Manifest;
-import android.app.Activity;
+import android.app.Activity;\nimport android.app.job.JobInfo;\nimport android.app.job.JobScheduler;\nimport android.content.ComponentName;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.DialogInterface;
@@ -54,7 +54,7 @@ import java.util.List;
  */
 public class MainActivity extends Activity {
     private static final int REQ_FILE = 1, REQ_SAVE = 2, REQ_PERM_LOC = 3, REQ_PERM_CAM = 4;
-    private static final String PREFS = "cfg", KEY_SERVER = "server";
+    private static final String PREFS = "cfg", KEY_SERVER = "server";\n    static final String OUTBOX_PREFS = "hm_native_outbox";
 
     private WebView web;
     private FrameLayout root;
@@ -77,7 +77,7 @@ public class MainActivity extends Activity {
         setContentView(root);
         SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
         server = sp.getString(KEY_SERVER, "");
-        buildWebView();
+        scheduleOutboxSync();\n        buildWebView();
         if (b == null || web.restoreState(b) == null) {      // обычный запуск (или состояние не удалось восстановить)
             if (server.length() == 0) showServerDialog(false); else web.loadUrl(server + "/app/");
         }
@@ -356,9 +356,9 @@ public class MainActivity extends Activity {
         }
     }
 
-    // ───────────── мост для страницы (window.AndroidBridge) ─────────────
+    private void scheduleOutboxSync() {\n        if (Build.VERSION.SDK_INT < 21) return;\n        JobScheduler js=(JobScheduler)getSystemService(JOB_SCHEDULER_SERVICE);\n        JobInfo job=new JobInfo.Builder(7301,new ComponentName(this,OrderSyncJobService.class))\n          .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY).setPersisted(true).setPeriodic(15*60*1000L).build();\n        js.schedule(job);\n    }\n\n    // ───────────── мост для страницы (window.AndroidBridge) ─────────────
     private class Bridge {
-        /** Отчёт (xlsx) из страницы: байты в base64 → окно «Сохранить как…» → запись в выбранное место. */
+        @JavascriptInterface\n        public void queueOrderSync(String baseUrl, String token, String requestId, String jsonBody) {\n            if (baseUrl == null || token == null || requestId == null || jsonBody == null) return;\n            SharedPreferences p=getSharedPreferences(OUTBOX_PREFS,MODE_PRIVATE);\n            p.edit().putString("base:"+requestId,baseUrl).putString("token:"+requestId,token).putString("body:"+requestId,jsonBody).putBoolean("pending:"+requestId,true).commit();\n            scheduleOutboxSync();\n        }\n\n        /** Отчёт (xlsx) из страницы: байты в base64 → окно «Сохранить как…» → запись в выбранное место. */
         @JavascriptInterface
         public void saveBase64(final String name, final String mime, final String b64) {
             final byte[] data = Base64.decode(b64, Base64.DEFAULT);
