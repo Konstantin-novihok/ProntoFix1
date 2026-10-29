@@ -183,6 +183,16 @@ class OrderSyncKey(Base):
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=now)
 
 
+class CancellationRecord(Base):
+    """Minimal cancellation audit metadata for owner-only analytics."""
+    __tablename__ = "order_cancellations"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), unique=True, index=True)
+    actor_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    reason: Mapped[str] = mapped_column(String(300), default="")
+    cancelled_at: Mapped[dt.datetime] = mapped_column(DateTime, default=now)
+
+
 class Comment(Base):
     __tablename__ = "comments"
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -874,6 +884,7 @@ def accept(oid: int, user: User = Depends(current_user), db: Session = Depends(g
 
 class StatusIn(BaseModel):
     status: str
+    reason: str = ""
 
 
 @app.post("/orders/{oid}/status")
@@ -883,13 +894,31 @@ def set_status(oid: int, b: StatusIn, user: User = Depends(current_user), db: Se
     o = get_order(db, user, oid)
     allowed = (user.role in (OWNER, ADMIN, HEAD)
                or (user.role == EXECUTOR and o.executor_id == user.id)
-               or (user.role == CLIENT and b.status == "cancelled"))   # заказчик может только отменить
+               or (user.role == CLIENT and b.status == "cancelled"))
     if not allowed:
         raise HTTPException(403, "Forbidden")
+    if b.status == "cancelled" and o.status != "cancelled":
+        db.add(CancellationRecord(order_id=o.id, actor_id=user.id, reason=b.reason.strip()[:300]))
     log(db, user, "set_status", "order", o.id, f"{o.status}->{b.status}")
     o.status = b.status
     db.commit()
     return order_out(db, o, user)
+
+
+@app.get("/analytics/cancellations")
+def cancellation_analytics(limit: int = 500, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Owner/admin cancellation records, separated from active work queue."""
+    need(user, OWNER, ADMIN)
+    rows = db.execute(select(CancellationRecord, Order).join(Order, Order.id == CancellationRecord.order_id)
+                      .order_by(CancellationRecord.cancelled_at.desc()).limit(min(max(limit, 1), 1000))).all()
+    result = []
+    for record, order in rows:
+        actor = db.get(User, record.actor_id)
+        result.append(dict(order_id=order.id, title=order.title, status=order.status,
+                           actor=(actor.full_name or actor.username) if actor else "?",
+                           reason=record.reason, cancelled_at=record.cancelled_at.isoformat(),
+                           created_at=order.created_at.isoformat(), service_type=order.service_type))
+    return result
 
 
 class EstimateIn(BaseModel):
