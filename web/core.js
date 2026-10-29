@@ -78,8 +78,39 @@ async function setLang(code, rerender = true) {
 }
 
 // ───────────── Запросы к API ─────────────
+// Durable local order outbox. Stored per authenticated account in localStorage; no files are queued.
+const OUTBOX_KEY = 'hm_order_outbox_v1';
+const queueOwner = () => S.me ? String(S.me.id) : 'anonymous';
+function outboxRead() { try { const a=JSON.parse(ls.get(OUTBOX_KEY)||'[]'); return Array.isArray(a)?a:[]; } catch (_) { return []; } }
+function outboxWrite(a) { ls.set(OUTBOX_KEY, JSON.stringify(a)); }
+function outboxCount() { return outboxRead().filter(x=>x.owner===queueOwner()).length; }
+function outboxId() { return 'hm-' + (crypto.randomUUID ? crypto.randomUUID() : Date.now()+'-'+Math.random().toString(16).slice(2)); }
+async function queueOrder(payload) {
+  const entry={id:outboxId(),owner:queueOwner(),payload,state:'pending',created_at:new Date().toISOString(),last_error:''};
+  const a=outboxRead(); a.push(entry); outboxWrite(a);
+  return {queued:true,client_request_id:entry.id};
+}
+async function syncOrderOutbox() {
+  if (!S.token || !S.me || !navigator.onLine || window.__hmOutboxSyncing) return;
+  window.__hmOutboxSyncing=true;
+  try {
+    const all=outboxRead(), owned=all.filter(x=>x.owner===queueOwner());
+    for(const item of owned) {
+      if(item.state==='cancelled') continue;
+      try {
+        const opt={method:'POST',headers:{Authorization:'Bearer '+S.token,'Content-Type':'application/json','X-Client-Request-ID':item.id},body:JSON.stringify(item.payload)};
+        const res=await fetch('/orders',opt); const data=await res.json().catch(()=>null);
+        if(!res.ok) { item.last_error=(data&&data.detail)||('HTTP '+res.status); item.state='error'; }
+        else { item.state='synced'; item.order_id=data.id; item.synced_at=new Date().toISOString(); }
+        const next=outboxRead().map(x=>x.id===item.id?item:x); outboxWrite(next);
+      } catch(e) { item.last_error='Нет соединения'; item.state='pending'; outboxWrite(outboxRead().map(x=>x.id===item.id?item:x)); break; }
+    }
+  } finally { window.__hmOutboxSyncing=false; }
+}
+window.addEventListener('online',()=>syncOrderOutbox().then(()=>{if(S.me)toast('Синхронизация локальной очереди завершена');}).catch(()=>{}));
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncOrderOutbox().catch(()=>{});});
 async function api(method, path, body) {
-  const opt = {method, headers: {}};
+  if (method === 'POST' && path === '/orders' && body && typeof body === 'object' && !(body instanceof FormData)) {\n    const reqId=outboxId();\n    try { const opt={method,headers:{'Content-Type':'application/json','X-Client-Request-ID':reqId}}; if(S.token) opt.headers.Authorization='Bearer '+S.token; opt.body=JSON.stringify(body); const r=await fetch(path,opt); const data=await r.json().catch(()=>null); if(!r.ok){let d=data&&data.detail;if(Array.isArray(d))d=d.map(x=>x.msg).join('; ');throw Object.assign(new Error(d||r.statusText),{http:true});} return data; } catch(e) { if(e.http) throw e; return await queueOrder(body); }\n  }\n  const opt = {method, headers: {}};
   if (S.token) opt.headers.Authorization = 'Bearer ' + S.token;
   if (body instanceof FormData) opt.body = body;
   else if (body !== undefined) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
