@@ -17,9 +17,15 @@ public final class SyncRepository {
    try {
     db.runInTransaction(()->{
      SyncTask found=db.tasks().get(stableId);
-     if(found==null) db.tasks().insert(new SyncTask(stableId,"ORDER",json,token,WAITING,System.currentTimeMillis()));
+     if(found==null) {
+      long inserted=db.tasks().insert(new SyncTask(stableId,"ORDER",json,token,WAITING,System.currentTimeMillis()));
+      if(inserted < 0) throw new IllegalStateException("Task insert was ignored");
+     }
      SyncTask verify=db.tasks().get(stableId);
      if(verify==null || !"ORDER".equals(verify.kind)) throw new IllegalStateException("Task ID collision");
+     // Stable ID is only idempotent when the entire migration payload matches.
+     if(!json.equals(verify.payload) || !sameToken(token,verify.authToken))
+      throw new IllegalStateException("Stable task ID conflict: existing content differs; legacy source retained");
     });
     if(committed!=null) committed.run();
    } catch(Exception ignored) { /* Keep source record; caller may retry migration. */ }
@@ -29,5 +35,6 @@ public final class SyncRepository {
  public void setTaskState(String id,String state,String error,int attempts){IO.execute(()->db.tasks().setState(id,state,System.currentTimeMillis(),error,attempts));}
  public void setAttachmentState(String id,String state,String error,int attempts){IO.execute(()->db.attachments().setState(id,state,error,attempts));}
  public void cancelAttachment(String id){IO.execute(()->db.attachments().cancel(id));}
+ private static boolean sameToken(String a,String b){return a==null?b==null:a.equals(b);}
  public SyncDatabase database(){return db;}
 }
