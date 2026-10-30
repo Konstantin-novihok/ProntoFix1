@@ -36,43 +36,7 @@ jobs:
           python ../tools/test_server2.py
 
   android-apk:
-    name: Build and verify Android APK
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-      - name: Install Android build tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y aapt apksigner zipalign dalvik-exchange android-sdk-platform-23
-      - name: Build signed APK
-        working-directory: android
-        shell: bash
-        run: |
-          set -euo pipefail
-          export ANDROID_JAR=/usr/lib/android-sdk/platforms/android-23/android.jar
-          export KEYSTORE="$RUNNER_TEMP/prontofix-ci.keystore"
-          export KS_PASS="$(openssl rand -hex 24)"
-          export KEY_ALIAS=prontofix-ci
-          bash ./build_apk.sh
-          test -s HomeMaster.apk
-          apksigner verify --verbose HomeMaster.apk
-          aapt dump badging HomeMaster.apk | grep -E '^(package|sdkVersion|targetSdkVersion|application-label:)'
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: HomeMaster-Android-APK
-          path: android/HomeMaster.apk
-          if-no-files-found: error
-          retention-days: 14
-
-  android-gradle-validation:
-    name: Validate Gradle Android configuration
+    name: Build and verify Android APK (Gradle)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
