@@ -816,9 +816,12 @@ def create_order(b: OrderIn, request: Request, user: User = Depends(current_user
         client_id = user.parent_id
     else:
         client_id = b.client_id
+    order_currency = (b.currency or get_setting(db, "currency") or "UAH").strip().upper()
+    if len(order_currency) != 3 or not order_currency.isascii() or not order_currency.isalpha():
+        raise HTTPException(400, "Currency must be a three-letter ISO 4217 code")
     o = Order(title=b.title.strip() or "-", description=b.description, address=b.address, lat=b.lat, lon=b.lon,
               department_id=b.department_id, client_id=client_id, created_by=user.id,
-              service_type=b.service_type.strip()[:80], currency=(b.currency or get_setting(db, "currency") or "UAH").upper())
+              service_type=b.service_type.strip()[:80], currency=order_currency)
     if user.role == HEAD:
         o.department_id = user.department_id
     db.add(o)
