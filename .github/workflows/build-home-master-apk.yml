@@ -1,0 +1,35 @@
+name: Build Home Master APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "android/**"
+      - ".github/workflows/build-home-master-apk.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Android build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openjdk-17-jdk-headless aapt apksigner zipalign dalvik-exchange android-sdk-platform-23
+      - name: Build APK
+        working-directory: android
+        run: |
+          chmod +x build_apk.sh
+          ./build_apk.sh
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HomeMaster-APK
+          path: android/HomeMaster.apk
+          if-no-files-found: error
+          retention-days: 30
