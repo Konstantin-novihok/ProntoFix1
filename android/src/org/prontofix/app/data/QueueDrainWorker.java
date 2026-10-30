@@ -34,7 +34,9 @@ public final class QueueDrainWorker extends Worker {
      StringBuilder text=new StringBuilder(); if(stream!=null)try(BufferedReader rd=new BufferedReader(new InputStreamReader(stream,StandardCharsets.UTF_8))){String line;while((line=rd.readLine())!=null)text.append(line);}
      if(status>=200&&status<300){
       JSONObject reply=new JSONObject(text.toString()); long remote=reply.getLong("id");
-      db.tasks().setState(task.id,SyncRepository.UPLOADED,System.currentTimeMillis(),null,0);
+      db.tasks().setConfirmed(task.id,remote,System.currentTimeMillis());
+     } else if(status==401){
+      db.tasks().setState(task.id,SyncRepository.ERROR,System.currentTimeMillis(),"HTTP 401: требуется повторная авторизация",0);
      } else if(status==400||status==403||status==404||status==409||status==422){
       db.tasks().setState(task.id,SyncRepository.ERROR,System.currentTimeMillis(),"HTTP "+status+": "+text,0);
      } else {db.tasks().setState(task.id,SyncRepository.RETRY,System.currentTimeMillis(),"HTTP "+status,0);return Result.retry();}
