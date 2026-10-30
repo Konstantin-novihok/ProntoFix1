@@ -81,6 +81,11 @@ with TestClient(server.app) as c:
 
     # ───── 4. финансы ─────
     check(c.post("/finance/prepayment", json={"client_id": clid, "amount": 1000, "note": "аванс"}, headers=H(A)).json()["balance"] == 1000, "prepayment adds balance")
+    eur_prepay = c.post("/finance/prepayment", json={"client_id": clid, "amount": 50, "currency": "EUR"}, headers=H(A))
+    check(eur_prepay.status_code == 200 and eur_prepay.json()["balance"] == 50 and eur_prepay.json()["balances"]["UAH"] == 1000,
+          "prepayment balances remain separated by currency")
+    check(c.post("/finance/prepayment", json={"client_id": clid, "amount": 10, "currency": "US"}, headers=H(A)).status_code == 400,
+          "invalid currency code rejected")
     check(c.post("/finance/prepayment", json={"client_id": clid, "amount": 1}, headers=H(E1)).status_code == 403, "executor cannot add prepayment")
     o1 = c.post("/orders", json={"title": "Стиралка", "service_type": "Ремонт стиральных машин", "lat": 50.45, "lon": 30.52, "department_id": dep["id"]}, headers=H(CL)).json()
     # Idempotency regression: retry with the same client request ID returns one order.
@@ -112,6 +117,8 @@ with TestClient(server.app) as c:
     check(c.post(f"/orders/{o1['id']}/finance", json={"price": 1}, headers=H(E1)).status_code == 403, "executor cannot set price")
     check(c.post(f"/orders/{o1['id']}/finance", json={"labor_hours": 2}, headers=H(E1)).status_code == 200, "executor logs hours")
     check(c.post(f"/orders/{o1['id']}/finance", json={"price": 300}, headers=H(A)).status_code == 200, "admin sets price")
+    check(c.post(f"/orders/{o1['id']}/expenses", json={"kind": "material", "description": "wrong currency", "qty": 1, "unit_cost": 5, "currency": "EUR"}, headers=H(E1)).status_code == 400,
+          "expense cannot mix currencies inside an order")
     check(c.post(f"/orders/{o1['id']}/expenses", json={"kind": "material", "description": "насос", "qty": 1, "unit_cost": 40}, headers=H(E1)).status_code == 200, "executor adds expense")
     f = c.get(f"/orders/{o1['id']}/finance", headers=H(A)).json()
     check(f["price"] == 300 and f["materials"] == 40 and f["pay"] == 100 and f["cost_price"] == 140 and f["margin"] == 160, f"cost math (hourly): {f}")
