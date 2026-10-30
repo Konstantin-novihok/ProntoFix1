@@ -443,7 +443,8 @@ def add_points(b: PointsIn, user: User = Depends(current_user), db: Session = De
         db.add(TrackPoint(user_id=user.id, route_id=b.route_id, lat=p.lat, lon=p.lon, accuracy=p.accuracy, speed=p.speed, ts=ts))
         if last is None or ts >= last[2]:
             last = (p.lat, p.lon, ts)
-    user.last_lat, user.last_lon, user.last_seen = last
+    # Location telemetry must not overwrite general account activity (last_seen).
+    user.last_lat, user.last_lon = last[0], last[1]
     db.commit()
     return {"saved": len(b.points)}
 
