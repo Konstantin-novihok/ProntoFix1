@@ -14,7 +14,7 @@ import math
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, select
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
@@ -319,9 +319,19 @@ def get_route(rid: int, user: User = Depends(current_user), db: Session = Depend
 
 class ArriveIn(BaseModel):
     order_id: int
-    lat: float
-    lon: float
+    # GPS is optional: an employee may report arrival even when tracking is disabled
+    # or Android location permission/network is unavailable.
+    lat: Optional[float] = None
+    lon: Optional[float] = None
     accuracy: Optional[float] = None
+
+    @model_validator(mode="after")
+    def validate_coordinate_pair(self):
+        if (self.lat is None) != (self.lon is None):
+            raise ValueError("lat and lon must be provided together")
+        if self.lat is not None and not (-90 <= self.lat <= 90 and -180 <= self.lon <= 180):
+            raise ValueError("Bad coordinates")
+        return self
 
 
 @router.post("/routes/{rid}/arrive")
@@ -332,7 +342,7 @@ def arrive(rid: int, b: ArriveIn, user: User = Depends(current_user), db: Sessio
     r = _my_route(db, user, rid)
     if r.status != "active":
         raise HTTPException(400, "Route is finished")
-    _check_coords(Pt(lat=b.lat, lon=b.lon))
+    has_fix = b.lat is not None and b.lon is not None
     stops = json.loads(r.stops_json)
     idx = next((i for i, s in enumerate(stops) if s["order_id"] == b.order_id), None)
     if idx is None:
@@ -348,8 +358,10 @@ def arrive(rid: int, b: ArriveIn, user: User = Depends(current_user), db: Sessio
     tracked = tracked_distance_km(pts) if len(pts) >= 2 else 0.0
     planned = stops[idx]["planned_leg_km"]
     leg, source = (tracked, "tracked") if tracked > 0.05 else (planned, stops[idx]["leg_source"])
-    stops[idx].update(actual_leg_km=round(leg, 3), actual_source=source, arrived_at=t_now.isoformat(),
-                      fix=dict(lat=b.lat, lon=b.lon, accuracy=b.accuracy))
+    stop_update = dict(actual_leg_km=round(leg, 3), actual_source=source, arrived_at=t_now.isoformat())
+    if has_fix:
+        stop_update["fix"] = dict(lat=b.lat, lon=b.lon, accuracy=b.accuracy)
+    stops[idx].update(stop_update)
     # запомнить реальный замер между предыдущей и этой точкой
     prev_pt = ({"lat": stops[idx - 1]["lat"], "lon": stops[idx - 1]["lon"]} if idx > 0
                else ({"lat": r.start_lat, "lon": r.start_lon} if r.start_lat is not None else None))
@@ -359,9 +371,11 @@ def arrive(rid: int, b: ArriveIn, user: User = Depends(current_user), db: Sessio
     o = db.get(Order, b.order_id)
     if o:
         o.arrived_at = t_now
-        db.add(GeoFix(order_id=o.id, user_id=user.id, lat=b.lat, lon=b.lon, accuracy=b.accuracy))
-        if b.accuracy is None or b.accuracy <= 50:
-            o.lat, o.lon, o.geo_verified = b.lat, b.lon, True      # объект теперь на карте в точном месте
+        # Save GPS-derived data only when the client explicitly supplied a fix.
+        if has_fix:
+            db.add(GeoFix(order_id=o.id, user_id=user.id, lat=b.lat, lon=b.lon, accuracy=b.accuracy))
+            if b.accuracy is None or b.accuracy <= 50:
+                o.lat, o.lon, o.geo_verified = b.lat, b.lon, True
         o.distance_km = r2((o.distance_km or 0) + leg)
         cpk = float(get_setting(db, "cost_per_km") or 0)
         if not o.settled_at:
