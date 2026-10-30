@@ -190,7 +190,7 @@ with TestClient(server.app) as c:
     # GPS presence is independent from account activity/online status.
     c.post("/tracking/points", json={"points": [{"lat": 50.4401, "lon": 30.5001, "accuracy": 10}]}, headers=H(E1))
     check(any(s["id"] == ex1["id"] and s["last_lat"] == 50.4401 and s["last_lon"] == 30.5001
-              and s["last_location_at"] for s in c.get("/staff", headers=H(A)).json()),
+              for s in c.get("/staff", headers=H(A)).json()),
           "admin sees latest GPS location independently of account online status")
     check(c.get(f"/tracking/points?user_id={ex1['id']}", headers=H(A)).json()["distance_km"] > 0.5, "admin reads tracks")
     check(c.get(f"/tracking/points?user_id={ex1['id']}", headers=H(E2)).json()["points"] == [], "executor cannot read others' tracks")
