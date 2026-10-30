@@ -1131,7 +1131,7 @@ def audit(limit: int = 200, user: User = Depends(current_user), db: Session = De
 # ---------- Модули расширений ----------
 # Каждый модуль определяет router (APIRouter) и свои таблицы; ВАЖНО: импортировать надо именно server,
 # а не модуль напрямую (модули берут общие функции из server).
-EXT_MODULES = ["people", "appearance", "finance", "tracking", "warehouse", "storage", "analytics", "reports"]
+EXT_MODULES = ["people", "appearance", "finance", "tracking", "warehouse", "storage", "analytics", "reports", "notifications"]
 for _name in EXT_MODULES:
     app.include_router(importlib.import_module(_name).router)
 
