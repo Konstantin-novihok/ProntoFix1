@@ -83,6 +83,14 @@ with TestClient(server.app) as c:
     check(c.post("/finance/prepayment", json={"client_id": clid, "amount": 1000, "note": "аванс"}, headers=H(A)).json()["balance"] == 1000, "prepayment adds balance")
     check(c.post("/finance/prepayment", json={"client_id": clid, "amount": 1}, headers=H(E1)).status_code == 403, "executor cannot add prepayment")
     o1 = c.post("/orders", json={"title": "Стиралка", "service_type": "Ремонт стиральных машин", "lat": 50.45, "lon": 30.52, "department_id": dep["id"]}, headers=H(CL)).json()
+    # Idempotency regression: retry with the same client request ID returns one order.
+    idem_headers = {**H(CL), "X-Client-Request-ID": "test-idempotency-repeat-001"}
+    idem_a = c.post("/orders", json={"title": "Повторная заявка"}, headers=idem_headers)
+    idem_b = c.post("/orders", json={"title": "Повторная заявка"}, headers=idem_headers)
+    check(idem_a.status_code == 200 and idem_b.status_code == 200 and idem_a.json()["id"] == idem_b.json()["id"],
+          "same idempotency key returns same order")
+    idem_other = c.post("/orders", json={"title": "Случайный конфликт"}, headers={**H(A), "X-Client-Request-ID": "test-idempotency-repeat-001"})
+    check(idem_other.status_code == 409, "idempotency key cannot be reused across accounts")
     c.post(f"/orders/{o1['id']}/assign", json={"executor_id": ex1["id"]}, headers=H(A))
     c.post(f"/orders/{o1['id']}/status", json={"status": "done"}, headers=H(E1))
     check(c.post(f"/orders/{o1['id']}/finance", json={"price": 1}, headers=H(E1)).status_code == 403, "executor cannot set price")
