@@ -1035,6 +1035,16 @@ async def upload(oid: int, request: Request, file: UploadFile = File(...),
             expected_size = request.headers.get("x-content-size")
             if expected_hash != receipt.sha256 or expected_size != str(receipt.size):
                 raise HTTPException(409, "Upload ID reused with different content metadata")
+            # Verify replay bytes too; do not trust client-supplied digest/size alone.
+            replay_digest = hashlib.sha256()
+            replay_size = 0
+            while chunk := await file.read(1024 * 1024):
+                replay_size += len(chunk)
+                if replay_size > MAX_UPLOAD_MB * 1024 * 1024:
+                    raise HTTPException(413, "File too large")
+                replay_digest.update(chunk)
+            if replay_size != receipt.size or replay_digest.hexdigest() != receipt.sha256:
+                raise HTTPException(409, "Upload ID reused with different content")
             media = db.get(Media, receipt.media_id)
             if not media:
                 raise HTTPException(409, "Upload receipt points to missing media")
