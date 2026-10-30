@@ -18,7 +18,7 @@ public final class QueueDrainWorker extends Worker {
   try {
    // A network attempt may outlive the normal interval; reclaim only after a conservative lease timeout.
    long leaseCutoff=System.currentTimeMillis()-15L*60L*1000L;
-   db.tasks().reclaimExpired(leaseCutoff);
+   db.tasks().reclaimExpired(leaseCutoff,System.currentTimeMillis());
    db.attachments().reclaimExpired(leaseCutoff);
    for(SyncTask task:db.tasks().pending()){
     if(isStopped())return Result.retry();
