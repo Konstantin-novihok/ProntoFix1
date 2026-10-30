@@ -2,8 +2,8 @@
 <!-- Home Master / ProntoFix: нативная оболочка над веб-интерфейсом сервера. Android 5.0+ (API 21). -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="org.prontofix.app"
-    android:versionCode="2"
-    android:versionName="2.0">
+    android:versionCode="3"
+    android:versionName="3.0">
 
     <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="28" />
 
