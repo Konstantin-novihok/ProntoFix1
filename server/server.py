@@ -216,6 +216,19 @@ class Media(Base):
     size: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
 
+class MediaUploadReceipt(Base):
+    """Idempotency receipt for attachment uploads. Key is globally unique; owner/order/content are verified."""
+    __tablename__ = "media_upload_receipts"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    upload_key: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), index=True)
+    media_id: Mapped[int] = mapped_column(ForeignKey("media.id"), unique=True)
+    sha256: Mapped[str] = mapped_column(String(64))
+    size: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=now)
+
+
 class AppSetting(Base):   # общие настройки приложения (ключ → JSON-значение)
     __tablename__ = "app_settings"
     key: Mapped[str] = mapped_column(String(60), primary_key=True)
@@ -1005,21 +1018,60 @@ def guess_mime(filename: str) -> str:
 
 
 @app.post("/orders/{oid}/media")
-async def upload(oid: int, file: UploadFile = File(...), user: User = Depends(current_user),
-                 db: Session = Depends(get_db)):
-    """К заказу можно приложить фото, видео, аудио, документы (pdf, office), архивы — из любого места устройства."""
+async def upload(oid: int, request: Request, file: UploadFile = File(...),
+                 user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Upload media. X-Client-Upload-ID provides retry-safe idempotency with SHA-256 verification."""
     need(user, OWNER, ADMIN, HEAD, EXECUTOR, CLIENT, STAFF)
     o = get_order(db, user, oid)
+    upload_key = (request.headers.get("x-client-upload-id") or "").strip()
+    if upload_key and (len(upload_key) > 80 or not all(ch.isalnum() or ch in "-_." for ch in upload_key)):
+        raise HTTPException(400, "Invalid X-Client-Upload-ID")
+    if upload_key:
+        receipt = db.scalar(select(MediaUploadReceipt).where(MediaUploadReceipt.upload_key == upload_key))
+        if receipt:
+            if receipt.user_id != user.id or receipt.order_id != o.id:
+                raise HTTPException(409, "Upload ID belongs to another account or order")
+            expected_hash = (request.headers.get("x-content-sha256") or "").strip().lower()
+            expected_size = request.headers.get("x-content-size")
+            if expected_hash != receipt.sha256 or expected_size != str(receipt.size):
+                raise HTTPException(409, "Upload ID reused with different content metadata")
+            media = db.get(Media, receipt.media_id)
+            if not media:
+                raise HTTPException(409, "Upload receipt points to missing media")
+            return dict(id=media.id, original=media.original, mime=media.mime, size=media.size,
+                        kind=EXT_KIND.get(os.path.splitext(media.filename)[1].lstrip("."), "doc"))
+    expected_hash = (request.headers.get("x-content-sha256") or "").strip().lower()
+    expected_size = request.headers.get("x-content-size")
+    if upload_key and (len(expected_hash) != 64 or any(c not in "0123456789abcdef" for c in expected_hash)
+                       or expected_size is None or not expected_size.isdigit()):
+        raise HTTPException(400, "Idempotent uploads require X-Content-SHA256 and X-Content-Size")
     ext, kind = check_upload(file.filename, file.content_type)
     name, size = await save_stream(file, MEDIA_DIR, ext)
+    path = os.path.join(MEDIA_DIR, name)
+    digest = hashlib.sha256()
+    with open(path, "rb") as saved:
+        for chunk in iter(lambda: saved.read(1024 * 1024), b""):
+            digest.update(chunk)
+    actual_hash = digest.hexdigest()
+    if upload_key and (actual_hash != expected_hash or size != int(expected_size)):
+        os.remove(path)
+        raise HTTPException(400, "Uploaded content hash or size mismatch")
     m = Media(order_id=o.id, user_id=user.id, filename=name, original=(file.filename or name)[:200],
               mime=guess_mime(name), size=size)
     db.add(m)
     db.flush()
+    if upload_key:
+        db.add(MediaUploadReceipt(upload_key=upload_key, user_id=user.id, order_id=o.id,
+                                  media_id=m.id, sha256=actual_hash, size=size))
     log(db, user, "upload_media", "order", o.id, m.original)
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        if os.path.exists(path):
+            os.remove(path)
+        raise HTTPException(409, "Upload receipt conflict; retry with the same upload ID")
     return dict(id=m.id, original=m.original, mime=m.mime, size=size, kind=kind)
-
 
 @app.get("/media/{mid}")
 def get_media(mid: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
