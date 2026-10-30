@@ -18,5 +18,6 @@ import java.util.List;
  @Query("UPDATE sync_tasks SET remoteOrderId=:remoteId,status='UPLOADED',updatedAt=:now,lastError=NULL WHERE id=:id") public abstract int setConfirmed(String id,long remoteId,long now);
  /** Only stale leases may be reclaimed; never reset a fresh in-flight request. */
  @Query("UPDATE sync_tasks SET status='RETRY',lastError='Recovered expired worker lease' WHERE status='SENDING' AND updatedAt<:cutoff") public abstract int reclaimExpired(long cutoff);
+ @Query("UPDATE sync_tasks SET status='CANCELED',updatedAt=:now,lastError='Canceled locally before delivery',leaseOwner=NULL WHERE id=:id AND kind='ORDER' AND status IN ('WAITING','RETRY') AND remoteOrderId IS NULL") public abstract int cancelIfReady(String id,long now);
  @Query("DELETE FROM sync_tasks WHERE id=:id") public abstract int delete(String id);
 }
