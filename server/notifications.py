@@ -26,6 +26,44 @@ class Notice(Base):
     acknowledged_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime, nullable=True)
 
 
+class NoticePreference(Base):
+    __tablename__ = "notification_preferences"
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    categories_json: Mapped[str] = mapped_column(Text, default="{}")
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime, default=now, onupdate=now)
+
+
+NOTICE_CATEGORIES = ("general", "orders", "safety", "finance", "system")
+
+
+class NoticePreferenceIn(BaseModel):
+    categories: dict[str, bool] = Field(default_factory=dict)
+
+
+@router.get("/notifications/preferences")
+def get_notice_preferences(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    import json
+    row = db.get(NoticePreference, user.id)
+    saved = json.loads(row.categories_json or "{}") if row else {}
+    return {"categories": {c: bool(saved.get(c, True)) for c in NOTICE_CATEGORIES},
+            "critical_bypass": True}
+
+
+@router.put("/notifications/preferences")
+def set_notice_preferences(b: NoticePreferenceIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    import json
+    if any(k not in NOTICE_CATEGORIES for k in b.categories):
+        raise HTTPException(400, "Unsupported notification category")
+    row = db.get(NoticePreference, user.id)
+    if row is None:
+        row = NoticePreference(user_id=user.id)
+        db.add(row)
+    row.categories_json = json.dumps({c: bool(v) for c, v in b.categories.items()}, ensure_ascii=False)
+    row.updated_at = now()
+    db.commit()
+    return {"ok": True}
+
+
 class NoticeSend(BaseModel):
     title: str = Field(min_length=1, max_length=160)
     body: str = Field(min_length=1, max_length=5000)
@@ -75,17 +113,25 @@ def send_notice(b: NoticeSend, user: User = Depends(current_user), db: Session =
     recipients = db.scalars(q).all()
     if not recipients:
         raise HTTPException(400, "No active recipients match selection")
+    import json
     created = []
+    skipped = 0
     for target in recipients:
+        pref = db.get(NoticePreference, target.id)
+        settings = json.loads(pref.categories_json or "{}") if pref else {}
+        # Critical notices bypass category opt-outs; routine and important notices do not.
+        if b.priority != "critical" and settings.get(b.category, True) is False:
+            skipped += 1
+            continue
         n = Notice(sender_id=user.id, recipient_id=target.id, category=b.category, priority=b.priority,
                    title=b.title.strip(), body=b.body.strip(), sound=b.sound)
         db.add(n)
         created.append(n)
     db.flush()
     log(db, user, "notification_broadcast", "notification", None,
-        f"count={len(created)} category={b.category} priority={b.priority} groups={sorted(set(b.group_ids))}")
+        f"sent={len(created)} skipped_preferences={skipped} category={b.category} priority={b.priority} groups={sorted(set(b.group_ids))}")
     db.commit()
-    return {"sent": len(created), "ids": [n.id for n in created]}
+    return {"sent": len(created), "skipped_preferences": skipped, "ids": [n.id for n in created]}
 
 
 @router.get("/notifications")
