@@ -151,7 +151,19 @@ async function view_skins() {
     shared.length ? [h('h2', {}, t('skin_shared')), h('div', {class: 'skingrid'}, shared.map((x) => skinCard(x.data, sameSkin(current, x.data), () => apply(x.data), h('div', {}, setDefault(x), isAdmin() ? delBtn(x) : null))))] : null,
     h('h2', {}, t('skin_mine')), h('div', {class: 'skingrid'}, own.map((x) => skinCard(x.data, sameSkin(current, x.data), () => apply(x.data), delBtn(x)))),
     h('div', {class: 'row', style: 'margin:12px 0'}, h('button', {onclick: () => openEditor()}, '+ ' + t('skin_create'))), editorBox,
-    isAdmin() ? h('div', {class: 'card'}, h('h2', {}, t('app_name')), nameInput, h('div', {style: 'margin-top:10px'}, h('button', {onclick: guard(async () => {
-      await api('PUT', '/settings', {values: {app_name: nameInput.value}}); S.pub.app_name = nameInput.value; applyBrand(); toast(t('saved')); })}, t('ok')))) : null);
+    isAdmin() ? [
+      h('div', {class: 'card'}, h('h2', {}, t('app_name')), nameInput, h('div', {style: 'margin-top:10px'}, h('button', {onclick: guard(async () => {
+        await api('PUT', '/settings', {values: {app_name: nameInput.value}}); S.pub.app_name = nameInput.value; document.title = nameInput.value; const b = $('#brand'); if (b) b.textContent = '🛠 ' + nameInput.value; applyBrand(); toast(t('saved')); })}, t('ok')))),
+      h('div', {class: 'card'}, h('h2', {}, 'Публикация обновления Android'),
+        h('p', {class: 'muted small'}, 'Старые версии остаются совместимыми по умолчанию. Ссылка должна вести на APK по HTTPS.'),
+        ...[['version_code','Код версии','number'],['version_name','Название версии','text'],['download_url','HTTPS-ссылка на APK','url'],['sha256','SHA-256 (необязательно)','text'],['notes','Описание изменений','text']].map(([k,label,type]) => h('label', {class:'field'}, h('span',{},label), h('input',{type, id:'release-'+k, placeholder:label}))),
+        h('label', {class:'field'}, h('span',{},'Минимальная версия клиента (1 = не блокировать старые)'), h('input',{type:'number',id:'release-min',value:'1'})),
+        h('label', {class:'field'}, h('span',{},'Совместимый API (минимум / максимум)'), h('div',{class:'row'},h('input',{type:'number',id:'release-api-min',value:'1'}),h('input',{type:'number',id:'release-api-max',value:'1'}))),
+        h('button', {onclick:guard(async()=>{
+          const v=id=>$('#release-'+id).value.trim();
+          await api('POST','/app/releases',{platform:'android',version_code:Number(v('version_code')),version_name:v('version_name'),download_url:v('download_url'),sha256:v('sha256'),notes:v('notes'),min_client_version:Number($('#release-min').value||1),api_min:Number($('#release-api-min').value||1),api_max:Number($('#release-api-max').value||1),mandatory:false});
+          toast('Обновление опубликовано'); ['version_code','version_name','download_url','sha256','notes'].forEach(k=>$('#release-'+k).value='');
+        })},'Опубликовать обновление'))
+    ] : null);
 }
 route('skins', view_skins);
