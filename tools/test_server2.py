@@ -202,7 +202,7 @@ with TestClient(server.app) as c:
           "stale GPS batch does not roll back employee marker")
     check(c.post("/tracking/points", json={"points": [{"lat": 50.4, "lon": 30.5, "accuracy": -1}]}, headers=H(E1)).status_code == 400,
           "negative GPS accuracy rejected")
-    check(c.post("/tracking/points", json={"points": [{"lat": 50.4, "lon": 30.5, "speed": float("inf")}]}, headers=H(E1)).status_code == 422,
+    check(c.post("/tracking/points", json={"points": [{"lat": 50.4, "lon": 30.5, "speed": float("inf")}]}, headers=H(E1)).status_code == 400,
           "non-finite JSON speed rejected")
     check(c.post("/tracking/points", json={"points": track, "route_id": route_id}, headers=H(E2)).status_code == 403,
           "employee cannot attach GPS points to another employee route")
