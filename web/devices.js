@@ -75,10 +75,23 @@ const mapLink = (lat, lon, label) => `https://www.google.com/maps/dir/?api=1&des
 // ───────────── GPS ─────────────
 function gpsLocate(quiet) {
   return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) return reject(new Error(t('gps_unavailable')));
+    if (!navigator.geolocation) return reject(new Error('Геолокация недоступна в этом браузере или WebView.'));
+    if (!window.isSecureContext && location.hostname !== 'localhost') {
+      return reject(new Error('Геолокация требует HTTPS (либо localhost). Проверьте адрес сервера.'));
+    }
     if (!quiet) toast(t('gps_wait'));
-    navigator.geolocation.getCurrentPosition((p) => resolve({lat: p.coords.latitude, lon: p.coords.longitude, accuracy: p.coords.accuracy}),
-      () => reject(new Error(t('gps_unavailable'))), {enableHighAccuracy: true, timeout: 20000, maximumAge: quiet ? 60000 : 0});
+    navigator.geolocation.getCurrentPosition(
+      (p) => resolve({lat: p.coords.latitude, lon: p.coords.longitude, accuracy: p.coords.accuracy}),
+      (e) => {
+        const messages = {
+          1: 'Нет разрешения на геолокацию. Разрешите доступ к местоположению в Android и браузере.',
+          2: 'Телефон не смог определить местоположение. Проверьте GPS и системную геолокацию.',
+          3: 'Истекло время ожидания GPS. Выйдите на открытое место и повторите попытку.'
+        };
+        reject(new Error(messages[e && e.code] || ('Не удалось получить координаты: ' + (e && e.message || 'неизвестная ошибка'))));
+      },
+      {enableHighAccuracy: true, timeout: 20000, maximumAge: quiet ? 60000 : 0}
+    );
   });
 }
 // км по прямой между точками (для подсказок на экране; точный расчёт — на сервере)
