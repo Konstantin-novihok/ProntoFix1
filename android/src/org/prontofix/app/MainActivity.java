@@ -146,10 +146,7 @@ public class MainActivity extends Activity {
         int pad = (int) (20 * getResources().getDisplayMetrics().density);
         box.setPadding(pad, pad / 2, pad, 0);
         TextView hint = new TextView(this);
-        hint.setText("Адрес вашего сервера
-Server address
-
-https://… (для интернета)  /  http://192.168.x.x:8000 (домашняя сеть)");
+        hint.setText("Адрес вашего сервера\nServer address\n\nhttps://… (для интернета)  /  http://192.168.x.x:8000 (домашняя сеть)");
         box.addView(hint);
         box.addView(input);
         AlertDialog.Builder bld = new AlertDialog.Builder(this).setTitle("Home Master").setView(box).setCancelable(cancelable)
