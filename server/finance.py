@@ -321,8 +321,9 @@ def clients(user: User = Depends(current_user), db: Session = Depends(get_db)):
     need(user, *ADMINS, OBSERVER)
     out = []
     for c in db.scalars(select(User).where(User.role == CLIENT).order_by(User.company_name, User.full_name)):
-        prepaid = db.scalar(select(func.coalesce(func.sum(Transaction.amount), 0.0)).where(Transaction.client_id == c.id, Transaction.kind == "prepayment"))
-        charged = db.scalar(select(func.coalesce(-func.sum(Transaction.amount), 0.0)).where(Transaction.client_id == c.id, Transaction.kind == "charge"))
+        base_currency = currency_code(get_setting(db, "currency"))
+        prepaid = db.scalar(select(func.coalesce(func.sum(Transaction.amount), 0.0)).where(Transaction.client_id == c.id, Transaction.kind == "prepayment", func.coalesce(Transaction.currency, "UAH") == base_currency))
+        charged = db.scalar(select(func.coalesce(-func.sum(Transaction.amount), 0.0)).where(Transaction.client_id == c.id, Transaction.kind == "charge", func.coalesce(Transaction.currency, "UAH") == base_currency))
         out.append(dict(id=c.id, name=c.full_name or c.username, company=c.company_name or "", balance=balance_of(db, c.id), balances=balances_by_currency(db, c.id),
                         prepaid_total=r2(prepaid), charged_total=r2(charged)))
     return out
