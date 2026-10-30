@@ -33,7 +33,8 @@ route('notifications', async () => {
       h('button',{onclick:guard(async()=>{
         const recipient_ids=[...recipient.selectedOptions].map(x=>Number(x.value));
         const selectedRoles=[...roles.selectedOptions].map(x=>Number(x.value));
-        if(!title.value.trim()||!body.value.trim()||(!recipient_ids.length&&!selectedRoles.length))throw Error('Заполните текст и выберите получателей');
+        const group_ids=[...groupSel.selectedOptions].map(x=>Number(x.value));
+        if(!title.value.trim()||!body.value.trim()||(!recipient_ids.length&&!selectedRoles.length&&!group_ids.length))throw Error('Заполните текст и выберите получателей');
         const result=await api('POST','/notifications',{title:title.value,body:body.value,category:category.value,priority:priority.value,sound:snd.checked,recipient_ids,roles:selectedRoles,group_ids});
         toast('Отправлено: '+result.sent);render();
       })},'Отправить'),
