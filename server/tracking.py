@@ -432,9 +432,17 @@ def add_points(b: PointsIn, user: User = Depends(current_user), db: Session = De
         raise HTTPException(403, "Location tracking is disabled by organization policy")
     if not b.points or len(b.points) > 500:
         raise HTTPException(400, "1..500 points")
+    if b.route_id is not None:
+        route = db.get(Route, b.route_id)
+        if route is None or route.user_id != user.id or route.status != "active":
+            raise HTTPException(403, "Route is not an active route of this user")
     last = None
     for p in b.points:
         _check_coords(Pt(lat=p.lat, lon=p.lon))
+        if p.accuracy is not None and (not math.isfinite(p.accuracy) or p.accuracy < 0):
+            raise HTTPException(400, "accuracy must be a finite non-negative number")
+        if p.speed is not None and (not math.isfinite(p.speed) or p.speed < 0):
+            raise HTTPException(400, "speed must be a finite non-negative number")
         try:
             ts = dt.datetime.fromisoformat(p.ts.replace("Z", "+00:00")).astimezone(dt.timezone.utc).replace(tzinfo=None) if p.ts else now()
         except ValueError:
