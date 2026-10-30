@@ -778,7 +778,8 @@ class OrderIn(BaseModel):
     lon: Optional[float] = None
     department_id: Optional[int] = None
     client_id: Optional[int] = None   # только если заказ создаёт владелец/начальник от имени заказчика
-    service_type: str = ""            # вид услуги (список настраивает администратор)\n    currency: Optional[str] = None  # ISO 4217; omitted = company base currency
+    service_type: str = ""            # вид услуги (список настраивает администратор)
+    currency: Optional[str] = None      # ISO 4217; defaults to company currency\n    currency: Optional[str] = None  # ISO 4217; omitted = company base currency
 
 
 @app.get("/orders")
