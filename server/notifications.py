@@ -5,6 +5,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from server import ADMINS, STAFF_ROLES, Base, User, current_user, get_db, log, need, now
@@ -154,7 +155,25 @@ def send_notice(b: NoticeSend, user: User = Depends(current_user), db: Session =
     result = {"sent": len(created), "skipped_preferences": skipped, "ids": [n.id for n in created]}
     if b.request_key:
         db.add(NoticeBatch(sender_id=user.id, request_key=b.request_key, payload_hash=digest, result_json=json.dumps(result)))
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # Two requests with the same idempotency key can pass the initial
+        # lookup concurrently. The unique constraint is the final arbiter;
+        # rollback this transaction (including its Notice rows), then return
+        # the result committed by the winning request.
+        db.rollback()
+        if not b.request_key:
+            raise
+        previous = db.scalar(select(NoticeBatch).where(
+            NoticeBatch.sender_id == user.id,
+            NoticeBatch.request_key == b.request_key,
+        ))
+        if previous is None:
+            raise
+        if previous.payload_hash != digest:
+            raise HTTPException(409, "Request key already used with a different payload")
+        return json.loads(previous.result_json)
     return result
 
 
