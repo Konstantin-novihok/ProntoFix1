@@ -181,6 +181,7 @@ class OrderSyncKey(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     client_key: Mapped[str] = mapped_column(String(80), unique=True, index=True)
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), index=True)
+    payload_sha256: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=now)
 
 
@@ -790,6 +791,9 @@ def create_order(b: OrderIn, request: Request, user: User = Depends(current_user
     """Create order. X-Client-Request-ID makes offline retries idempotent."""
     need(user, OWNER, ADMIN, HEAD, CLIENT, STAFF)
     client_key = (request.headers.get("x-client-request-id") or "").strip()
+    # Fingerprint validated canonical payload so an idempotency key cannot silently
+    # turn a changed offline intent into a replay of an unrelated order.
+    payload_sha256 = hashlib.sha256(json.dumps(b.model_dump(), sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")).hexdigest()
     if client_key:
         if len(client_key) > 80:
             raise HTTPException(400, "X-Client-Request-ID must be at most 80 characters")
@@ -797,6 +801,8 @@ def create_order(b: OrderIn, request: Request, user: User = Depends(current_user
         if receipt:
             if receipt.user_id != user.id:
                 raise HTTPException(409, "Request ID already belongs to another account")
+            if receipt.payload_sha256 and not hmac.compare_digest(receipt.payload_sha256, payload_sha256):
+                raise HTTPException(409, "Request ID was already used with a different payload")
             existing = db.get(Order, receipt.order_id)
             if not existing:
                 raise HTTPException(409, "Idempotency receipt points to a missing order")
@@ -815,7 +821,7 @@ def create_order(b: OrderIn, request: Request, user: User = Depends(current_user
     db.add(o)
     db.flush()
     if client_key:
-        db.add(OrderSyncKey(user_id=user.id, client_key=client_key, order_id=o.id))
+        db.add(OrderSyncKey(user_id=user.id, client_key=client_key, order_id=o.id, payload_sha256=payload_sha256))
     log(db, user, "create_order", "order", o.id, o.title)
     try:
         db.commit()
@@ -827,6 +833,8 @@ def create_order(b: OrderIn, request: Request, user: User = Depends(current_user
         if client_key:
             receipt = db.scalar(select(OrderSyncKey).where(OrderSyncKey.client_key == client_key))
             if receipt and receipt.user_id == user.id:
+                if receipt.payload_sha256 and not hmac.compare_digest(receipt.payload_sha256, payload_sha256):
+                    raise HTTPException(409, "Request ID was already used with a different payload")
                 existing = db.get(Order, receipt.order_id)
                 if existing:
                     return order_out(db, existing, user)
