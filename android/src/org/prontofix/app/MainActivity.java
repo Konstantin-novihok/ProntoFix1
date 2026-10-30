@@ -360,26 +360,36 @@ public class MainActivity extends Activity {
         }
     }
 
-    /** One-time best-effort migration of legacy pending orders into Room. */
+    /** Idempotent legacy migration. The source keys are removed only after Room commits. */
     private void migrateLegacyOutbox(SharedPreferences serverPrefs) {
-        SharedPreferences old = getSharedPreferences("hm_native_outbox", MODE_PRIVATE);
+        final SharedPreferences old = getSharedPreferences("hm_native_outbox", MODE_PRIVATE);
         java.util.Map<String, ?> values = old.getAll();
         java.util.Set<String> ids = new java.util.HashSet<String>();
         for (String k : values.keySet()) if (k.startsWith("pending:") && Boolean.TRUE.equals(values.get(k))) ids.add(k.substring(8));
-        for (String id : ids) {
-            String base = old.getString("base:" + id, "");
-            String token = old.getString("token:" + id, "");
-            String body = old.getString("body:" + id, "");
+        for (final String legacyId : ids) {
+            final String base = old.getString("base:" + legacyId, "");
+            final String token = old.getString("token:" + legacyId, "");
+            final String body = old.getString("body:" + legacyId, "");
             if (base.length() == 0 || body.length() == 0) continue;
             try {
                 org.json.JSONObject envelope = new org.json.JSONObject();
                 envelope.put("baseUrl", base);
+                envelope.put("requestId", legacyId);
                 envelope.put("body", new org.json.JSONTokener(body).nextValue());
-                org.prontofix.app.data.SyncRepository repo = new org.prontofix.app.data.SyncRepository(this);
-                repo.enqueueOrder(envelope.toString(), token);
-                old.edit().remove("pending:" + id).remove("base:" + id).remove("token:" + id).remove("body:" + id).apply();
-                org.prontofix.app.data.QueueWork.request(this);
-            } catch (Exception ignored) { /* Keep legacy entry for manual recovery. */ }
+                // Deterministic local key: duplicate migration attempts converge on one Room row.
+                final String stableId = "legacy-order-" + legacyId;
+                final String expectedBody = body;
+                new org.prontofix.app.data.SyncRepository(this).enqueueOrder(stableId, envelope.toString(), token, new Runnable() {
+                    @Override public void run() {
+                        // Avoid deleting a replaced/re-written entry.
+                        if (!old.getBoolean("pending:" + legacyId, false)) return;
+                        if (!expectedBody.equals(old.getString("body:" + legacyId, ""))) return;
+                        boolean removed = old.edit().remove("pending:" + legacyId).remove("base:" + legacyId)
+                            .remove("token:" + legacyId).remove("body:" + legacyId).commit();
+                        if (removed) org.prontofix.app.data.QueueWork.request(MainActivity.this);
+                    }
+                });
+            } catch (Exception ignored) { /* Preserve malformed legacy data for recovery. */ }
         }
     }
 
