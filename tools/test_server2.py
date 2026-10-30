@@ -324,7 +324,24 @@ with TestClient(server.app) as c:
     check(c.get("/reports/hack.xlsx", headers=H(A)).status_code == 404, "unknown report")
     check(c.get("/reports/orders.xlsx", headers=H(CL)).status_code == 403, "client cannot export")
 
-    # ───── 11. прочее ─────
+    # ───── 11. уведомления: идемпотентность ─────
+    notice_key = "ci-notice-retry-0001"
+    notice_payload = {"title": "CI retry test", "body": "Only one notice must be created",
+                      "recipient_ids": [ex1["id"]], "request_key": notice_key}
+    notice_first = c.post("/notifications", json=notice_payload, headers=H(A))
+    check(notice_first.status_code == 200 and notice_first.json()["sent"] == 1,
+          "notification idempotency first send")
+    notice_repeat = c.post("/notifications", json=notice_payload, headers=H(A))
+    check(notice_repeat.status_code == 200 and notice_repeat.json() == notice_first.json(),
+          "notification retry returns original result")
+    notice_conflict = c.post("/notifications", json={**notice_payload, "body": "Changed payload"},
+                             headers=H(A))
+    check(notice_conflict.status_code == 409, "notification key rejects changed payload")
+    inbox = c.get("/notifications", headers=H(E1)).json()
+    check(sum(1 for x in inbox if x["title"] == "CI retry test") == 1,
+          "notification retry does not create duplicates")
+
+    # ───── 12. прочее ─────
     check(c.get("/audit", headers=H(A)).json()[0]["action"] in ("report", "chat_delete", "storage_delete"), "actions are audited")
     acts = {x["action"] for x in c.get("/audit?limit=1000", headers=H(A)).json()}
     check({"settle", "prepayment", "arrive", "wh_consume", "verify_contractor", "storage_delete", "change_settings", "report", "create_invite"} <= acts, f"audit coverage: {sorted(acts)}")
