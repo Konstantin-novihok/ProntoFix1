@@ -93,7 +93,15 @@ route('orders', async () => {
   };
   draw();
   const pending = S.me.verification === 'pending' ? h('div', {class: 'card warn'}, t('pending_verification')) : null;
-  const queuedBox = queued.length ? h('div', {class: 'card warn'}, h('b', {}, 'Локальная очередь: ' + queued.length), h('p', {class: 'muted small'}, 'Заявки сохранены на этом устройстве и ожидают синхронизации. Не очищайте данные приложения.'), ...queued.map(item => h('div', {class: 'row'}, h('span', {class: 'grow'}, (item.payload.title || 'Заявка') + ' · ' + (item.state === 'error' ? 'ошибка синхронизации' : 'ожидает отправки')), h('button', {class: 'ghost small', onclick: guard(async () => { if(!await confirmBox('Удалить локальную заявку из очереди?'))return; outboxWrite(outboxRead().filter(x=>x.id!==item.id)); render(); })}, 'Удалить'))), h('button', {class: 'ghost', onclick: guard(async()=>{await syncOrderOutbox();render();})}, 'Синхронизировать'));\n  syncOrderOutbox().catch(()=>{});\n  return h('div', {}, pending, queuedBox, h('div', {class: 'row'}, h('h1', {class: 'grow'}, t('orders')), q, filter, h('button', {class: 'ghost', onclick: () => render()}, t('refresh'))), list);
+  const queuedBox = queued.length ? h('div', {class: 'card warn'}, h('b', {}, 'Локальная очередь: ' + queued.length), h('p', {class: 'muted small'}, 'Заявки сохранены на этом устройстве и ожидают синхронизации. Не очищайте данные приложения.'), ...queued.map(item => h('div', {class: 'row'}, h('span', {class: 'grow'}, (item.payload.title || 'Заявка') + ' · ' + (item.state === 'error' ? 'ошибка синхронизации' : 'ожидает отправки')), h('button', {class: 'ghost small', onclick: guard(async () => {
+      if(!await confirmBox('Отменить локальную заявку? Если отправка уже началась, отмена будет отклонена.')) return;
+      if(window.AndroidBridge && typeof window.AndroidBridge.cancelOrderSync === 'function') {
+        let canceled=false;
+        try { canceled=window.AndroidBridge.cancelOrderSync(String(item.id)) === true || window.AndroidBridge.cancelOrderSync(String(item.id)) === 'true'; } catch (_) {}
+        if(!canceled) { toast('Не удалось подтвердить отмену: заявка уже отправляется, отправлена или не найдена. Запись оставлена.', true); return; }
+      }
+      outboxWrite(outboxRead().filter(x=>x.id!==item.id)); render();
+    })}, 'Отменить'))), h('button', {class: 'ghost', onclick: guard(async()=>{await syncOrderOutbox();render();})}, 'Синхронизировать'));\n  syncOrderOutbox().catch(()=>{});\n  return h('div', {}, pending, queuedBox, h('div', {class: 'row'}, h('h1', {class: 'grow'}, t('orders')), q, filter, h('button', {class: 'ghost', onclick: () => render()}, t('refresh'))), list);
 });
 
 // ───────────── Файлы заказа: показ ─────────────
