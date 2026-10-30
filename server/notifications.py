@@ -4,7 +4,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, select
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, select
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from server import ADMINS, STAFF_ROLES, Base, User, current_user, get_db, log, need, now
@@ -24,6 +24,17 @@ class Notice(Base):
     sound: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=now, index=True)
     acknowledged_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime, nullable=True)
+
+
+class NoticeBatch(Base):
+    __tablename__ = "notification_batches"
+    __table_args__ = (UniqueConstraint("sender_id", "request_key", name="uq_notice_batch_sender_key"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    sender_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    request_key: Mapped[str] = mapped_column(String(100))
+    payload_hash: Mapped[str] = mapped_column(String(64))
+    result_json: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=now)
 
 
 class NoticePreference(Base):
@@ -73,6 +84,7 @@ class NoticeSend(BaseModel):
     recipient_ids: list[int] = Field(default_factory=list, max_length=500)
     roles: list[int] = Field(default_factory=list, max_length=10)
     group_ids: list[int] = Field(default_factory=list, max_length=200)
+    request_key: Optional[str] = Field(default=None, min_length=8, max_length=100)
 
 
 def notice_out(n: Notice):
@@ -91,7 +103,16 @@ def send_notice(b: NoticeSend, user: User = Depends(current_user), db: Session =
         raise HTTPException(400, "Unsupported priority")
     if b.priority == "critical" and not b.sound:
         raise HTTPException(400, "Critical notification requires sound enabled")
-    import json
+    import json, hashlib
+    digest = None
+    if b.request_key:
+        payload = b.model_dump(exclude={"request_key"})
+        digest = hashlib.sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
+        previous = db.scalar(select(NoticeBatch).where(NoticeBatch.sender_id == user.id, NoticeBatch.request_key == b.request_key))
+        if previous:
+            if previous.payload_hash != digest:
+                raise HTTPException(409, "Request key already used with a different payload")
+            return json.loads(previous.result_json)
     group_member_ids = set()
     for gid in set(b.group_ids):
         group = db.get(NoticeGroup, gid)
@@ -130,8 +151,11 @@ def send_notice(b: NoticeSend, user: User = Depends(current_user), db: Session =
     db.flush()
     log(db, user, "notification_broadcast", "notification", None,
         f"sent={len(created)} skipped_preferences={skipped} category={b.category} priority={b.priority} groups={sorted(set(b.group_ids))}")
+    result = {"sent": len(created), "skipped_preferences": skipped, "ids": [n.id for n in created]}
+    if b.request_key:
+        db.add(NoticeBatch(sender_id=user.id, request_key=b.request_key, payload_hash=digest, result_json=json.dumps(result)))
     db.commit()
-    return {"sent": len(created), "skipped_preferences": skipped, "ids": [n.id for n in created]}
+    return result
 
 
 @router.get("/notifications")
