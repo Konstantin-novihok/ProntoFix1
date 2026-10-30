@@ -16,6 +16,7 @@ public class Attachment {
  public int attempts;
  public long createdAt;
  public long updatedAt;
+ public String leaseOwner;
  public String remoteId;
  public String lastError;
  public Attachment(){id="";taskId="";localPath="";displayName="";mimeType="application/octet-stream";sizeBytes=0;sha256="";status="WAITING";attempts=0;createdAt=0;}
