@@ -169,6 +169,7 @@ class Order(Base):
     # --- услуга и финансы ---
     service_type: Mapped[str] = mapped_column(String(80), default="")
     price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)         # цена услуги для заказчика
+    currency: Mapped[str] = mapped_column(String(3), default="UAH")               # ISO 4217 currency for all order finance
     labor_hours: Mapped[Optional[float]] = mapped_column(Float, nullable=True)   # отработанные часы
     distance_km: Mapped[Optional[float]] = mapped_column(Float, nullable=True)   # километры дороги к объекту
     settled_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime, nullable=True)   # расчёт проведён
@@ -383,7 +384,7 @@ def order_out(db: Session, o: Order, viewer: Optional["User"] = None):
                 settled=bool(o.settled_at), client_company=cl.company_name if cl else None,
                 executor_company=ex.company_name if ex else None,
                 executor_employment=(ex.employment or "internal") if ex else None,
-                price=o.price if (viewer is not None and viewer.role in PRICE_ROLES) else None)
+                price=o.price if (viewer is not None and viewer.role in PRICE_ROLES) else None, currency=(o.currency or "UAH"))
 
 
 def visible_orders(user: User):
@@ -777,7 +778,7 @@ class OrderIn(BaseModel):
     lon: Optional[float] = None
     department_id: Optional[int] = None
     client_id: Optional[int] = None   # только если заказ создаёт владелец/начальник от имени заказчика
-    service_type: str = ""            # вид услуги (список настраивает администратор)
+    service_type: str = ""            # вид услуги (список настраивает администратор)\n    currency: Optional[str] = None  # ISO 4217; omitted = company base currency
 
 
 @app.get("/orders")
@@ -817,7 +818,7 @@ def create_order(b: OrderIn, request: Request, user: User = Depends(current_user
         client_id = b.client_id
     o = Order(title=b.title.strip() or "-", description=b.description, address=b.address, lat=b.lat, lon=b.lon,
               department_id=b.department_id, client_id=client_id, created_by=user.id,
-              service_type=b.service_type.strip()[:80])
+              service_type=b.service_type.strip()[:80], currency=(b.currency or get_setting(db, "currency") or "UAH").upper())
     if user.role == HEAD:
         o.department_id = user.department_id
     db.add(o)
