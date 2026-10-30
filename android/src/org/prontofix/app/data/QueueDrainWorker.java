@@ -45,16 +45,16 @@ public final class QueueDrainWorker extends Worker {
     if(isStopped())return Result.retry();
     SyncTask parent=db.tasks().get(item.taskId);
     if(parent==null||"ERROR".equals(parent.status)||"CANCELED".equals(parent.status)){
-     db.attachments().setState(item.id,SyncRepository.ERROR,parent==null?"Parent order task is missing":"Parent order cannot be synchronized: "+parent.status,0);continue;
+     db.attachments().setStateIfReady(item.id,SyncRepository.ERROR,parent==null?"Parent order task is missing":"Parent order cannot be synchronized: "+parent.status);continue;
     }
     if(!"UPLOADED".equals(parent.status)||parent.remoteOrderId==null){
-     db.attachments().setState(item.id,SyncRepository.RETRY,"Waiting for confirmed server order",0);retry=true;continue;
+     db.attachments().setStateIfReady(item.id,SyncRepository.RETRY,"Waiting for confirmed server order");retry=true;continue;
     }
     if(parent.authToken==null||parent.authToken.isEmpty()){
-     db.attachments().setState(item.id,SyncRepository.ERROR,"Missing authorization token",0);continue;
+     db.attachments().setStateIfReady(item.id,SyncRepository.ERROR,"Missing authorization token");continue;
     }
     File file=new File(item.localPath);
-    if(!file.isFile()){db.attachments().setState(item.id,SyncRepository.ERROR,"Local attachment file is missing",0);continue;}
+    if(!file.isFile()){db.attachments().setStateIfReady(item.id,SyncRepository.ERROR,"Local attachment file is missing");continue;}
     if(db.attachments().claimAt(item.id,System.currentTimeMillis(),leaseOwner)!=1)continue;
     HttpURLConnection con=null;
     try{
