@@ -187,9 +187,11 @@ with TestClient(server.app) as c:
         c.post(f"/routes/{route_id}/arrive", json={"order_id": s["order_id"], "lat": s["lat"], "lon": s["lon"]}, headers=H(E1))
     fr = c.post(f"/routes/{route_id}/finish", headers=H(E1)).json(); check(fr["status"] == "done" and fr["actual_km"] > 0.5, f"route finished: {fr['actual_km']} km")
     check(c.get("/routes", headers=H(E2)).json() == [], "executor sees only own routes"); check(len(c.get("/routes", headers=H(A)).json()) == 1, "admin sees all routes")
-    # положение сотрудников (свежая точка = «в сети»)
+    # GPS presence is independent from account activity/online status.
     c.post("/tracking/points", json={"points": [{"lat": 50.4401, "lon": 30.5001, "accuracy": 10}]}, headers=H(E1))
-    check(any(s["id"] == ex1["id"] and s["last_lat"] is not None and s["online"] for s in c.get("/staff", headers=H(A)).json()), "admin sees staff location (online)")
+    check(any(s["id"] == ex1["id"] and s["last_lat"] == 50.4401 and s["last_lon"] == 30.5001
+              and s["last_location_at"] for s in c.get("/staff", headers=H(A)).json()),
+          "admin sees latest GPS location independently of account online status")
     check(c.get(f"/tracking/points?user_id={ex1['id']}", headers=H(A)).json()["distance_km"] > 0.5, "admin reads tracks")
     check(c.get(f"/tracking/points?user_id={ex1['id']}", headers=H(E2)).json()["points"] == [], "executor cannot read others' tracks")
     # GPS regression checks: stale batches cannot roll back the current marker.
@@ -218,7 +220,8 @@ with TestClient(server.app) as c:
     naive_gps = c.post("/tracking/points", json={"points": [{"lat": 48.1, "lon": 28.1, "ts": naive_utc}]}, headers=H(E1))
     check(naive_gps.status_code == 200, "timezone-less UTC GPS timestamp accepted")
     naive_points = c.get(f"/tracking/points?user_id={ex1['id']}", headers=H(A)).json()["points"]
-    check(any(p["lat"] == 48.1 and p["lon"] == 28.1 and p["ts"].startswith(naive_utc),
+    check(any(p["lat"] == 48.1 and p["lon"] == 28.1 and p["ts"].startswith(naive_utc)
+              for p in naive_points),
           "timezone-less GPS timestamp is stored as UTC without local-time shift")
 
     # ───── 6. склад ─────
