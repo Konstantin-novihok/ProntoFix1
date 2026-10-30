@@ -35,6 +35,25 @@ public final class SyncRepository {
  public void setTaskState(String id,String state,String error,int attempts){IO.execute(()->db.tasks().setState(id,state,System.currentTimeMillis(),error,attempts));}
  public void setAttachmentState(String id,String state,String error,int attempts){IO.execute(()->db.attachments().setState(id,state,error,attempts));}
  public void cancelAttachment(String id){IO.execute(()->db.attachments().cancel(id));}
+
+ /** Atomically cancel an order only while it is provably not delivered. Returns false if state changed. */
+ public boolean cancelOrderIfNotSent(String taskId){
+  final boolean[] canceled={false};
+  db.runInTransaction(()->{
+   SyncTask before=db.tasks().get(taskId);
+   if(before==null || !"ORDER".equals(before.kind) || before.remoteOrderId!=null ||
+      !(WAITING.equals(before.status)||RETRY.equals(before.status))) return;
+   int changed=db.tasks().cancelIfReady(taskId,System.currentTimeMillis());
+   if(changed!=1) return;
+   // Since the order is still local, its attachments cannot have been accepted as server uploads.
+   for(Attachment item:db.attachments().byTask(taskId)){
+    if(WAITING.equals(item.status)||RETRY.equals(item.status))
+     db.attachments().cancel(item.id);
+   }
+   canceled[0]=true;
+  });
+  return canceled[0];
+ }
  private static boolean sameToken(String a,String b){return a==null?b==null:a.equals(b);}
  public SyncDatabase database(){return db;}
 }
