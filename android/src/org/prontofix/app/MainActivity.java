@@ -403,9 +403,21 @@ public class MainActivity extends Activity {
                 envelope.put("baseUrl", baseUrl);
                 envelope.put("requestId", requestId);
                 envelope.put("body", new org.json.JSONTokener(jsonBody).nextValue());
-                new org.prontofix.app.data.SyncRepository(MainActivity.this).enqueueOrder(envelope.toString(), token);
+                new org.prontofix.app.data.SyncRepository(MainActivity.this).enqueueOrder("order-" + requestId, envelope.toString(), token, null);
                 org.prontofix.app.data.QueueWork.request(MainActivity.this);
             } catch (Exception e) { toast("Ошибка постановки заказа в очередь: " + e.getMessage()); }
+        }
+
+        /** Cancel only a definitely-unsent local order. The page passes the same request ID used at enqueue. */
+        @JavascriptInterface
+        public boolean cancelOrderSync(String requestId) {
+            if (requestId == null || requestId.length() == 0 || requestId.length() > 180) return false;
+            try {
+                return new org.prontofix.app.data.SyncRepository(MainActivity.this)
+                    .cancelOrderIfNotSent("order-" + requestId);
+            } catch (Exception e) {
+                return false;
+            }
         }
 
         /** Отчёт (xlsx) из страницы: байты в base64 → окно «Сохранить как…» → запись в выбранное место. */
