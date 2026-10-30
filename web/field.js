@@ -125,7 +125,30 @@ route('map', async () => {
 route('staffmap', async () => {
   const box = h('div', {class: 'mapbox big'});
   const list = h('div', {});
-  let map = null, L = null, layer = null, trackLayer = null, staff = [];
+  const trackingPrefs = h('div', {class: 'card'});
+  let map = null, L = null, layer = null, trackLayer = null, staff = [], prefs = [];
+  const drawTrackingPrefs = () => {
+    trackingPrefs.replaceChildren(h('h3', {}, 'Разрешение отслеживания сотрудников'),
+      h('p', {class: 'muted small'}, 'Настройка применяется на сервере. Сотрудник должен быть проинформирован о геолокации. Отключение блокирует приём новых GPS-точек.'),
+      ...prefs.map((p) => h('label', {class: 'row', style: 'padding:8px 0;border-bottom:1px solid var(--line)'},
+        h('input', {type: 'checkbox', checked: p.enabled, onchange: guard(async (ev) => {
+          const enabled = ev.target.checked;
+          ev.target.disabled = true;
+          try {
+            const saved = await api('PUT', '/tracking/preferences/' + p.user_id, {enabled});
+            p.enabled = saved.enabled;
+            toast(enabled ? 'Отслеживание разрешено' : 'Отслеживание отключено');
+          } catch (err) {
+            ev.target.checked = p.enabled;
+            toast(err.message, true);
+          } finally { ev.target.disabled = false; }
+        })}),
+        h('span', {class: 'grow'}, p.full_name),
+        h('span', {class: 'muted small'}, p.last_seen ? fmtDate(p.last_seen) : 'Нет координат'),
+        h('span', {class: 'badge ' + (p.enabled ? 'st_done' : '')}, p.enabled ? 'Разрешено' : 'Отключено')
+      ))
+    );
+  };
   const draw = () => {
     list.replaceChildren(table([t('employee'), t('company'), t('phone'), t('last_seen'), ''], staff.map((s) => [
       h('span', {}, h('span', {class: 'dot ' + (s.online ? 'on' : '')}), ' ', personName(s), ' ', roleBadge(s.role)), s.company_name || '',
@@ -149,8 +172,8 @@ route('staffmap', async () => {
     }
     return pts;
   };
-  const load = async () => { staff = await api('GET', '/staff'); return draw(); };
-  const root = h('div', {}, pageHead(t('staff_map'), back('#/admin', t('admin'))), box, h('div', {class: 'card'}, list));
+  const load = async () => { staff = await api('GET', '/staff'); prefs = await api('GET', '/tracking/preferences'); drawTrackingPrefs(); return draw(); };
+  const root = h('div', {}, pageHead(t('staff_map'), back('#/admin', t('admin'))), box, h('div', {class: 'card'}, list), trackingPrefs);
   setTimeout(async () => {
     try {
       await load();
