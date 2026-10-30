@@ -14,5 +14,8 @@ import java.util.List;
  @Query("UPDATE attachments SET status='SENDING',lastError=NULL,attempts=attempts+1 WHERE id=:id AND status IN ('WAITING','RETRY')") int claim(String id);
  @Query("UPDATE attachments SET status='UPLOADED',remoteId=:remoteId,lastError=NULL WHERE id=:id") int setUploaded(String id,String remoteId);
  @Query("UPDATE attachments SET status='CANCELED',lastError=NULL WHERE id=:id AND status NOT IN ('UPLOADED','CANCELED')") int cancel(String id);
+ /** Only stale leases may be reclaimed. */
+ @Query("UPDATE attachments SET status='RETRY',lastError='Recovered expired worker lease' WHERE status='SENDING' AND updatedAt<:cutoff") int reclaimExpired(long cutoff);
+ @Query("UPDATE attachments SET status='SENDING',updatedAt=:now,lastError=NULL,attempts=attempts+1 WHERE id=:id AND status IN ('WAITING','RETRY')") int claimAt(String id,long now);
  @Query("DELETE FROM attachments WHERE id=:id") int delete(String id);
 }
