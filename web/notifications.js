@@ -52,7 +52,8 @@ route('notifications', async () => {
         const selectedRoles=[...roles.selectedOptions].map(x=>Number(x.value));
         const group_ids=[...groupSel.selectedOptions].map(x=>Number(x.value));
         if(!title.value.trim()||!body.value.trim()||(!recipient_ids.length&&!selectedRoles.length&&!group_ids.length))throw Error('Заполните текст и выберите получателей');
-        const result=await api('POST','/notifications',{title:title.value,body:body.value,category:category.value,priority:priority.value,sound:snd.checked,recipient_ids,roles:selectedRoles,group_ids});
+        const request_key=(globalThis.crypto&&crypto.randomUUID)?crypto.randomUUID():('notice-'+Date.now()+'-'+Math.random().toString(36).slice(2));
+        const result=await api('POST','/notifications',{title:title.value,body:body.value,category:category.value,priority:priority.value,sound:snd.checked,recipient_ids,roles:selectedRoles,group_ids,request_key});
         toast('Отправлено: '+result.sent);render();
       })},'Отправить'),
       h('hr'),h('h3',{},'Создать/обновить группу из выбранных сотрудников'),
