@@ -445,7 +445,15 @@ def add_points(b: PointsIn, user: User = Depends(current_user), db: Session = De
         if p.speed is not None and (not math.isfinite(p.speed) or p.speed < 0):
             raise HTTPException(400, "speed must be a finite non-negative number")
         try:
-            ts = dt.datetime.fromisoformat(p.ts.replace("Z", "+00:00")).astimezone(dt.timezone.utc).replace(tzinfo=None) if p.ts else now()
+            if p.ts:
+                parsed_ts = dt.datetime.fromisoformat(p.ts.replace("Z", "+00:00"))
+                # The API contract defines timestamps as UTC. A timezone-less ISO
+                # value is therefore UTC too, not the server's local timezone.
+                if parsed_ts.tzinfo is None:
+                    parsed_ts = parsed_ts.replace(tzinfo=dt.timezone.utc)
+                ts = parsed_ts.astimezone(dt.timezone.utc).replace(tzinfo=None)
+            else:
+                ts = now()
         except ValueError:
             ts = now()
         if ts > now() + dt.timedelta(minutes=5):
