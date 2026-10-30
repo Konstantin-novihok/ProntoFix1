@@ -45,8 +45,17 @@ with TestClient(server.app) as c:
     assert len(c.get(f"/orders/{o['id']}", headers=H(et)).json()["comments"])==2
     assert c.post(f"/orders/{o['id']}/estimate", json={"hours":2,"price":50}, headers=H(et)).json()["status"]=="estimate"
     # media
-    r = c.post(f"/orders/{o['id']}/media", files={"file":("a.jpg", b"xx", "image/jpeg")}, headers=H(stt)); assert r.status_code==200, r.text
+    import hashlib
+    upload_headers = {**H(stt), "X-Client-Upload-ID":"test-upload-stable-001",
+                      "X-Content-SHA256":hashlib.sha256(b"xx").hexdigest(), "X-Content-Size":"2"}
+    r = c.post(f"/orders/{o['id']}/media", files={"file":("a.jpg", b"xx", "image/jpeg")}, headers=upload_headers); assert r.status_code==200, r.text
     assert c.get(f"/media/{r.json()['id']}?token={cl}").content==b"xx"
+    # A repeated upload ID with identical bytes returns the original media.
+    replay = c.post(f"/orders/{o['id']}/media", files={"file":("a.jpg", b"xx", "image/jpeg")}, headers=upload_headers)
+    assert replay.status_code==200 and replay.json()["id"]==r.json()["id"], replay.text
+    # Even if client lies using the previous digest/size, different bytes conflict.
+    changed = c.post(f"/orders/{o['id']}/media", files={"file":("a.jpg", b"yy", "image/jpeg")}, headers=upload_headers)
+    assert changed.status_code==409, changed.text
     assert c.post(f"/orders/{o['id']}/media", files={"file":("a.exe", b"xx", "application/x-msdownload")}, headers=H(stt)).status_code==400
     c.post(f"/orders/{o['id']}/status", json={"status":"done"}, headers=H(et))
     assert c.post(f"/orders/{o['id']}/rate", json={"rating":5}, headers=H(cl)).json()["rating"]==5
