@@ -213,6 +213,14 @@ with TestClient(server.app) as c:
     check(c.put(f"/tracking/preferences/{ex1['id']}", json={"enabled": True}, headers=H(A)).status_code == 200,
           "admin re-enables employee tracking")
 
+    # Naive ISO timestamps follow the documented UTC contract, regardless of server timezone.
+    naive_utc = "2020-01-02T03:04:05"
+    naive_gps = c.post("/tracking/points", json={"points": [{"lat": 48.1, "lon": 28.1, "ts": naive_utc}]}, headers=H(E1))
+    check(naive_gps.status_code == 200, "timezone-less UTC GPS timestamp accepted")
+    naive_points = c.get(f"/tracking/points?user_id={ex1['id']}", headers=H(A)).json()["points"]
+    check(any(p["lat"] == 48.1 and p["lon"] == 28.1 and p["ts"].startswith(naive_utc),
+          "timezone-less GPS timestamp is stored as UTC without local-time shift")
+
     # ───── 6. склад ─────
     it = c.post("/warehouse/items", json={"name": "Насос Askoll", "sku": "P-1", "kind": "material", "unit": "pcs", "unit_cost": 40, "min_qty": 2}, headers=H(A)).json()
     eq = c.post("/warehouse/items", json={"name": "Дрель", "kind": "equipment", "unit": "pcs"}, headers=H(A)).json()
