@@ -10,7 +10,7 @@ import java.util.Map;
 public class OrderSyncJobService extends JobService {
  @Override public boolean onStartJob(final JobParameters params) {
   AsyncTask.execute(new Runnable(){ public void run(){
-   SharedPreferences p=getSharedPreferences(MainActivity.OUTBOX_PREFS,MODE_PRIVATE);
+   SharedPreferences p=getSharedPreferences("hm_native_outbox",MODE_PRIVATE);
    Map<String,?> all=p.getAll();
    java.util.HashSet<String> ids=new java.util.HashSet<String>();
    for(String k:all.keySet()) if(k.startsWith("pending:") && Boolean.TRUE.equals(all.get(k))) ids.add(k.substring(8));
