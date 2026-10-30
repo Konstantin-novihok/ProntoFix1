@@ -52,8 +52,18 @@ route('notifications', async () => {
         const selectedRoles=[...roles.selectedOptions].map(x=>Number(x.value));
         const group_ids=[...groupSel.selectedOptions].map(x=>Number(x.value));
         if(!title.value.trim()||!body.value.trim()||(!recipient_ids.length&&!selectedRoles.length&&!group_ids.length))throw Error('Заполните текст и выберите получателей');
-        const request_key=(globalThis.crypto&&crypto.randomUUID)?crypto.randomUUID():('notice-'+Date.now()+'-'+Math.random().toString(36).slice(2));
-        const result=await api('POST','/notifications',{title:title.value,body:body.value,category:category.value,priority:priority.value,sound:snd.checked,recipient_ids,roles:selectedRoles,group_ids,request_key});
+        const payload={title:title.value,body:body.value,category:category.value,priority:priority.value,sound:snd.checked,recipient_ids,roles:selectedRoles,group_ids};
+        const fingerprint=JSON.stringify(payload);
+        const pendingKey='pf_notification_pending_v1';
+        let pending=null;
+        try { pending=JSON.parse(localStorage.getItem(pendingKey)||'null'); } catch (_) {}
+        if(!pending||pending.fingerprint!==fingerprint){
+          const request_key=(globalThis.crypto&&crypto.randomUUID)?crypto.randomUUID():('notice-'+Date.now()+'-'+Math.random().toString(36).slice(2));
+          pending={fingerprint,request_key};
+          try { localStorage.setItem(pendingKey,JSON.stringify(pending)); } catch (_) {}
+        }
+        const result=await api('POST','/notifications',{...payload,request_key:pending.request_key});
+        try { const saved=JSON.parse(localStorage.getItem(pendingKey)||'null'); if(saved&&saved.request_key===pending.request_key)localStorage.removeItem(pendingKey); } catch (_) {}
         toast('Отправлено: '+result.sent);render();
       })},'Отправить'),
       h('hr'),h('h3',{},'Создать/обновить группу из выбранных сотрудников'),
