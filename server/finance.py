@@ -33,6 +33,7 @@ class Transaction(Base):
     note: Mapped[str] = mapped_column(String(300), default="")
     created_by: Mapped[int] = mapped_column(Integer)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=now)
+    currency: Mapped[str] = mapped_column(String(3), default="UAH")
 
 
 class Expense(Base):
@@ -45,7 +46,8 @@ class Expense(Base):
     unit_cost: Mapped[float] = mapped_column(Float, default=0.0)
     amount: Mapped[float] = mapped_column(Float, default=0.0)
     item_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)    # материал со склада
-    auto: Mapped[bool] = mapped_column(Boolean, default=False)                # создан автоматически (маршрут/склад)\n    currency: Mapped[str] = mapped_column(String(3), default="UAH")
+    auto: Mapped[bool] = mapped_column(Boolean, default=False)                # создан автоматически (маршрут/склад)
+    currency: Mapped[str] = mapped_column(String(3), default="UAH")
     created_by: Mapped[int] = mapped_column(Integer)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=now)
 
@@ -56,7 +58,8 @@ class OrderPay(Base):   # начисление исполнителю по за�
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     amount: Mapped[float] = mapped_column(Float)
-    basis: Mapped[str] = mapped_column(String(200), default="")\n    currency: Mapped[str] = mapped_column(String(3), default="UAH")
+    basis: Mapped[str] = mapped_column(String(200), default="")
+    currency: Mapped[str] = mapped_column(String(3), default="UAH")
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=now)
 
 
@@ -70,6 +73,7 @@ class PayAdjustment(Base):   # премия / штраф
     order_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     created_by: Mapped[int] = mapped_column(Integer)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=now)
+    currency: Mapped[str] = mapped_column(String(3), default="UAH")
 
 
 # ───────────── расчёты ─────────────
@@ -77,8 +81,24 @@ def r2(x: float) -> float:
     return round(float(x or 0.0), 2)
 
 
-def balance_of(db: Session, client_id: int) -> float:
-    return r2(db.scalar(select(func.coalesce(func.sum(Transaction.amount), 0.0)).where(Transaction.client_id == client_id)))
+def balance_of(db: Session, client_id: int, currency: Optional[str] = None) -> float:
+    code = currency_code(currency)
+    return r2(db.scalar(select(func.coalesce(func.sum(Transaction.amount), 0.0)).where(
+        Transaction.client_id == client_id, func.coalesce(Transaction.currency, "UAH") == code)))
+
+
+def currency_code(value: Optional[str], fallback: str = "UAH") -> str:
+    code = (value or fallback or "UAH").strip().upper()
+    if len(code) != 3 or not code.isascii() or not code.isalpha():
+        raise HTTPException(400, "Currency must be a three-letter ISO 4217 code")
+    return code
+
+
+def balances_by_currency(db: Session, client_id: int) -> dict:
+    rows = db.execute(select(func.coalesce(Transaction.currency, "UAH"), func.sum(Transaction.amount))
+                      .where(Transaction.client_id == client_id)
+                      .group_by(func.coalesce(Transaction.currency, "UAH")))
+    return {code: r2(amount) for code, amount in rows}
 
 
 def expense_totals(db: Session, order_id: int) -> dict:
@@ -194,7 +214,7 @@ def add_expense(oid: int, b: ExpenseIn, user: User = Depends(current_user), db: 
     if b.kind not in ("material", "transport", "other") or b.qty <= 0 or b.unit_cost < 0:
         raise HTTPException(400, "Bad expense")
     e = Expense(order_id=o.id, kind=b.kind, description=b.description[:300], qty=b.qty, unit_cost=b.unit_cost,
-                amount=r2(b.qty * b.unit_cost), created_by=user.id)
+                amount=r2(b.qty * b.unit_cost), currency=cur, created_by=user.id)
     db.add(e)
     log(db, user, "add_expense", "order", o.id, f"{b.kind} {e.amount}")
     db.commit()
@@ -238,7 +258,7 @@ def settle(oid: int, user: User = Depends(current_user), db: Session = Depends(g
     pay = None
     if ex is not None:
         amount, basis = calc_pay(ex.rate_type, ex.rate_value, o.labor_hours, o.price, sum(totals.values()))
-        db.add(OrderPay(order_id=o.id, user_id=ex.id, amount=amount, basis=basis))
+        db.add(OrderPay(order_id=o.id, user_id=ex.id, amount=amount, basis=basis, currency=currency_code(o.currency)))
         pay = amount
     o.settled_at = now()
     log(db, user, "settle", "order", o.id, f"price={o.price} pay={pay} balance={new_balance}")
@@ -251,6 +271,7 @@ class PrepayIn(BaseModel):
     client_id: int
     amount: float
     note: str = ""
+    currency: Optional[str] = None
 
 
 @router.post("/finance/prepayment")
@@ -259,16 +280,18 @@ def prepayment(b: PrepayIn, user: User = Depends(current_user), db: Session = De
     c = db.get(User, b.client_id)
     if not c or c.role != CLIENT or b.amount <= 0:
         raise HTTPException(400, "Bad client or amount")
-    cur = currency_code(b.currency, get_setting(db, "currency"))\n    db.add(Transaction(client_id=c.id, kind="prepayment", amount=r2(b.amount), currency=cur, note=b.note[:300], created_by=user.id))
+    cur = currency_code(b.currency, get_setting(db, "currency"))
+    db.add(Transaction(client_id=c.id, kind="prepayment", amount=r2(b.amount), currency=cur, note=b.note[:300], created_by=user.id))
     log(db, user, "prepayment", "user", c.id, str(b.amount))
     db.commit()
-    return {"balance": balance_of(db, c.id)}
+    return {"currency": cur, "balance": balance_of(db, c.id, cur), "balances": balances_by_currency(db, c.id)}
 
 
 class AdjustIn(BaseModel):
     client_id: int
     amount: float            # со знаком
     note: str = ""
+    currency: Optional[str] = None
 
 
 @router.post("/finance/adjust")
@@ -277,14 +300,15 @@ def adjust(b: AdjustIn, user: User = Depends(current_user), db: Session = Depend
     c = db.get(User, b.client_id)
     if not c or c.role != CLIENT or b.amount == 0 or not b.note.strip():
         raise HTTPException(400, "Client, non-zero amount and a note are required")
-    cur = currency_code(b.currency, get_setting(db, "currency"))\n    db.add(Transaction(client_id=c.id, kind="adjust", amount=r2(b.amount), currency=cur, note=b.note[:300], created_by=user.id))
+    cur = currency_code(b.currency, get_setting(db, "currency"))
+    db.add(Transaction(client_id=c.id, kind="adjust", amount=r2(b.amount), currency=cur, note=b.note[:300], created_by=user.id))
     log(db, user, "finance_adjust", "user", c.id, f"{b.amount} {b.note}")
     db.commit()
     return {"balance": balance_of(db, c.id)}
 
 
 def tx_out(t: Transaction):
-    return dict(id=t.id, kind=t.kind, amount=r2(t.amount), note=t.note, order_id=t.order_id, created_at=t.created_at.isoformat())
+    return dict(id=t.id, kind=t.kind, amount=r2(t.amount), currency=t.currency or "UAH", note=t.note, order_id=t.order_id, created_at=t.created_at.isoformat())
 
 
 @router.get("/finance/clients")
@@ -294,7 +318,7 @@ def clients(user: User = Depends(current_user), db: Session = Depends(get_db)):
     for c in db.scalars(select(User).where(User.role == CLIENT).order_by(User.company_name, User.full_name)):
         prepaid = db.scalar(select(func.coalesce(func.sum(Transaction.amount), 0.0)).where(Transaction.client_id == c.id, Transaction.kind == "prepayment"))
         charged = db.scalar(select(func.coalesce(-func.sum(Transaction.amount), 0.0)).where(Transaction.client_id == c.id, Transaction.kind == "charge"))
-        out.append(dict(id=c.id, name=c.full_name or c.username, company=c.company_name or "", balance=balance_of(db, c.id),
+        out.append(dict(id=c.id, name=c.full_name or c.username, company=c.company_name or "", balance=balance_of(db, c.id), balances=balances_by_currency(db, c.id),
                         prepaid_total=r2(prepaid), charged_total=r2(charged)))
     return out
 
@@ -303,7 +327,7 @@ def clients(user: User = Depends(current_user), db: Session = Depends(get_db)):
 def ledger(client_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
     need(user, *ADMINS, OBSERVER)
     rows = db.scalars(select(Transaction).where(Transaction.client_id == client_id).order_by(Transaction.id.desc()).limit(500))
-    return dict(balance=balance_of(db, client_id), items=[tx_out(t) for t in rows])
+    return dict(balance=balance_of(db, client_id), balances=balances_by_currency(db, client_id), items=[tx_out(t) for t in rows])
 
 
 @router.get("/me/finance")
