@@ -307,7 +307,7 @@ def need(user: User, *roles: int):
 
 
 SETTING_DEFAULTS = {
-    "app_name": "Home Master", "company_name": "", "currency": "UAH", "cost_per_km": 0.0, "road_factor": 1.3,
+    "app_name": "ProntoFix", "company_name": "", "currency": "UAH", "cost_per_km": 0.0, "road_factor": 1.3,
     "overdraft_allowed": True, "require_employee_no": True, "id_rules_text": "",
     "service_types": ["Ремонт стиральных машин", "Ремонт холодильников", "Мелкий ремонт", "Диагностика", "Выезд мастера"],
     "default_skin": None,
