@@ -9,6 +9,9 @@ async function boot() {
   S.token = ls.get('hm_token');
   if (S.token) { try { S.me = await api('GET', '/me'); } catch (e) { S.token = null; S.me = null; } }
   initSkin();
+  document.title = S.pub.app_name || 'ProntoFix';
+  const brand = $('#brand');
+  if (brand) brand.textContent = '🛠 ' + (S.pub.app_name || 'ProntoFix');
   applyBrand();
   if (S.me) resumeTracking();
   window.addEventListener('hashchange', render);
