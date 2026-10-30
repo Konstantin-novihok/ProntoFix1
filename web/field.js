@@ -145,8 +145,11 @@ route('staffmap', async () => {
         })}),
         h('span', {class: 'grow'}, p.full_name),
         h('span', {class: 'muted small'}, p.last_location_at
-          ? 'Последний GPS-пакет: ' + fmtDate(p.last_location_at)
-          : 'GPS-пакетов пока нет'),
+          ? 'Время измерения GPS: ' + fmtDate(p.last_location_at)
+          : 'GPS-измерений пока нет'),
+        h('span', {class: 'muted small'}, p.location_received_at
+          ? 'Последний приём сервером: ' + fmtDate(p.location_received_at)
+          : 'Сервер ещё не принимал GPS-пакеты'),
         h('span', {class: 'muted small'}, p.last_seen
           ? 'Активность аккаунта: ' + fmtDate(p.last_seen)
           : 'Активность аккаунта неизвестна'),
