@@ -144,7 +144,12 @@ route('staffmap', async () => {
           } finally { ev.target.disabled = false; }
         })}),
         h('span', {class: 'grow'}, p.full_name),
-        h('span', {class: 'muted small'}, p.last_seen ? fmtDate(p.last_seen) : 'Нет координат'),
+        h('span', {class: 'muted small'}, p.last_location_at
+          ? 'Последний GPS-пакет: ' + fmtDate(p.last_location_at)
+          : 'GPS-пакетов пока нет'),
+        h('span', {class: 'muted small'}, p.last_seen
+          ? 'Активность аккаунта: ' + fmtDate(p.last_seen)
+          : 'Активность аккаунта неизвестна'),
         h('span', {class: 'badge ' + (p.enabled ? 'st_done' : '')}, p.enabled ? 'Разрешено' : 'Отключено')
       ))
     );
