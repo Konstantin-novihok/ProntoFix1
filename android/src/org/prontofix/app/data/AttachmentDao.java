@@ -10,6 +10,8 @@ import java.util.List;
  @Query("SELECT * FROM attachments WHERE status IN ('WAITING','RETRY','SENDING') ORDER BY createdAt") List<Attachment> pending();
  @Query("SELECT * FROM attachments ORDER BY createdAt DESC") List<Attachment> all();
  @Query("UPDATE attachments SET status=:status,lastError=:error,attempts=attempts+:attemptDelta WHERE id=:id") int setState(String id,String status,String error,int attemptDelta);
+ /** Preflight transitions must never overwrite a record already claimed by another worker. */
+ @Query("UPDATE attachments SET status=:status,lastError=:error WHERE id=:id AND status IN ('WAITING','RETRY')") int setStateIfReady(String id,String status,String error);
  /** Reserve only a ready record; competing workers cannot both own it. */
  @Query("UPDATE attachments SET status='SENDING',lastError=NULL,attempts=attempts+1 WHERE id=:id AND status IN ('WAITING','RETRY')") int claim(String id);
  @Query("UPDATE attachments SET status='UPLOADED',remoteId=:remoteId,lastError=NULL WHERE id=:id") int setUploaded(String id,String remoteId);
