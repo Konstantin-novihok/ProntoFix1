@@ -58,7 +58,6 @@ import java.util.List;
 public class MainActivity extends Activity {
     private static final int REQ_FILE = 1, REQ_SAVE = 2, REQ_PERM_LOC = 3, REQ_PERM_CAM = 4;
     private static final String PREFS = "cfg", KEY_SERVER = "server";
-    static final String OUTBOX_PREFS = "hm_native_outbox";
 
     private WebView web;
     private FrameLayout root;
@@ -81,7 +80,7 @@ public class MainActivity extends Activity {
         setContentView(root);
         SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
         server = sp.getString(KEY_SERVER, "");
-        scheduleOutboxSync();
+        migrateLegacyOutbox(sp);
         buildWebView();
         if (b == null || web.restoreState(b) == null) {      // обычный запуск (или состояние не удалось восстановить)
             if (server.length() == 0) showServerDialog(false); else web.loadUrl(server + "/app/");
@@ -364,12 +363,27 @@ https://… (для интернета)  /  http://192.168.x.x:8000 (домаш�
         }
     }
 
-    private void scheduleOutboxSync() {
-        if (Build.VERSION.SDK_INT < 21) return;
-        JobScheduler js=(JobScheduler)getSystemService(JOB_SCHEDULER_SERVICE);
-        JobInfo job=new JobInfo.Builder(7301,new ComponentName(this,OrderSyncJobService.class))
-          .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY).setPersisted(true).setPeriodic(15*60*1000L).build();
-        js.schedule(job);
+    /** One-time best-effort migration of legacy pending orders into Room. */
+    private void migrateLegacyOutbox(SharedPreferences serverPrefs) {
+        SharedPreferences old = getSharedPreferences("hm_native_outbox", MODE_PRIVATE);
+        java.util.Map<String, ?> values = old.getAll();
+        java.util.Set<String> ids = new java.util.HashSet<String>();
+        for (String k : values.keySet()) if (k.startsWith("pending:") && Boolean.TRUE.equals(values.get(k))) ids.add(k.substring(8));
+        for (String id : ids) {
+            String base = old.getString("base:" + id, "");
+            String token = old.getString("token:" + id, "");
+            String body = old.getString("body:" + id, "");
+            if (base.length() == 0 || body.length() == 0) continue;
+            try {
+                org.json.JSONObject envelope = new org.json.JSONObject();
+                envelope.put("baseUrl", base);
+                envelope.put("body", new org.json.JSONTokener(body).nextValue());
+                org.prontofix.app.data.SyncRepository repo = new org.prontofix.app.data.SyncRepository(this);
+                repo.enqueueOrder(envelope.toString(), token);
+                old.edit().remove("pending:" + id).remove("base:" + id).remove("token:" + id).remove("body:" + id).apply();
+                org.prontofix.app.data.QueueWork.request(this);
+            } catch (Exception ignored) { /* Keep legacy entry for manual recovery. */ }
+        }
     }
 
     // ───────────── мост для страницы (window.AndroidBridge) ─────────────
@@ -377,9 +391,14 @@ https://… (для интернета)  /  http://192.168.x.x:8000 (домаш�
         @JavascriptInterface
         public void queueOrderSync(String baseUrl, String token, String requestId, String jsonBody) {
             if (baseUrl == null || token == null || requestId == null || jsonBody == null) return;
-            SharedPreferences p=getSharedPreferences(OUTBOX_PREFS,MODE_PRIVATE);
-            p.edit().putString("base:"+requestId,baseUrl).putString("token:"+requestId,token).putString("body:"+requestId,jsonBody).putBoolean("pending:"+requestId,true).commit();
-            scheduleOutboxSync();
+            try {
+                org.json.JSONObject envelope = new org.json.JSONObject();
+                envelope.put("baseUrl", baseUrl);
+                envelope.put("requestId", requestId);
+                envelope.put("body", new org.json.JSONTokener(jsonBody).nextValue());
+                new org.prontofix.app.data.SyncRepository(MainActivity.this).enqueueOrder(envelope.toString(), token);
+                org.prontofix.app.data.QueueWork.request(MainActivity.this);
+            } catch (Exception e) { toast("Ошибка постановки заказа в очередь: " + e.getMessage()); }
         }
 
         /** Отчёт (xlsx) из страницы: байты в base64 → окно «Сохранить как…» → запись в выбранное место. */
