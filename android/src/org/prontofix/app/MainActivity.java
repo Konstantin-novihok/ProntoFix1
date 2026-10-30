@@ -212,9 +212,16 @@ public class MainActivity extends Activity {
     private class Chrome extends WebChromeClient {
         @Override
         public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback cb) {
-            if (Build.VERSION.SDK_INT < 23 || checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            // Android 12+ can grant approximate location only. WebView geolocation
+            // must accept either runtime permission and let the browser report accuracy.
+            boolean fine = Build.VERSION.SDK_INT < 23
+                || checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+            boolean coarse = Build.VERSION.SDK_INT < 23
+                || checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+            if (fine || coarse) {
                 cb.invoke(origin, true, false);
             } else {
+                if (geoCallback != null) geoCallback.invoke(geoOrigin, false, false);
                 geoCallback = cb; geoOrigin = origin;
                 requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, REQ_PERM_LOC);
             }
@@ -277,10 +284,16 @@ public class MainActivity extends Activity {
     public void onRequestPermissionsResult(int code, String[] perms, int[] res) {
         boolean ok = res.length > 0 && res[0] == PackageManager.PERMISSION_GRANTED;
         if (code == REQ_PERM_LOC && geoCallback != null) {
-            boolean any = false;
-            for (int r : res) if (r == PackageManager.PERMISSION_GRANTED) any = true;
-            geoCallback.invoke(geoOrigin, any, false);
-            geoCallback = null;
+            boolean allowed = Build.VERSION.SDK_INT < 23;
+            if (Build.VERSION.SDK_INT >= 23) {
+                allowed = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                    || checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+            }
+            GeolocationPermissions.Callback callback = geoCallback;
+            String origin = geoOrigin;
+            geoCallback = null; geoOrigin = null;
+            callback.invoke(origin, allowed, false);
+            if (!allowed) toast("Геолокация запрещена. Разрешите доступ к местоположению в настройках приложения.");
         } else if (code == REQ_PERM_CAM && camRequest != null) {
             if (ok) camRequest.grant(new String[]{PermissionRequest.RESOURCE_VIDEO_CAPTURE}); else camRequest.deny();
             camRequest = null;
