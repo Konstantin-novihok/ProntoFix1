@@ -20,7 +20,7 @@ public final class QueueDrainWorker extends Worker {
     if("SENDING".equals(task.status))db.tasks().setState(task.id,SyncRepository.RETRY,System.currentTimeMillis(),"Recovered interrupted attempt",0);
     task=db.tasks().get(task.id); if(task==null||"CANCELED".equals(task.status))continue;
     if("UPLOADED".equals(task.status))continue;
-    db.tasks().setState(task.id,SyncRepository.SENDING,System.currentTimeMillis(),null,1);
+    if(db.tasks().claim(task.id,System.currentTimeMillis())!=1)continue;
     try{
      JSONObject env=new JSONObject(task.payload); String base=env.getString("baseUrl").replaceAll("/+$","");
      HttpURLConnection con=(HttpURLConnection)new URL(base+"/orders").openConnection();
@@ -51,7 +51,7 @@ public final class QueueDrainWorker extends Worker {
     }
     File file=new File(item.localPath);
     if(!file.isFile()){db.attachments().setState(item.id,SyncRepository.ERROR,"Local attachment file is missing",0);continue;}
-    db.attachments().setState(item.id,SyncRepository.SENDING,null,1);
+    if(db.attachments().claim(item.id)!=1)continue;
     HttpURLConnection con=null;
     try{
      JSONObject env=new JSONObject(parent.payload);String base=env.getString("baseUrl").replaceAll("/+$","");
