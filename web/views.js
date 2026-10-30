@@ -79,7 +79,7 @@ route('register', (invite) => {
 
 // ───────────── Список заказов ─────────────
 route('orders', async () => {
-  const orders = await api('GET', '/orders');\n  const queued = outboxRead().filter(x => x.owner === queueOwner() && x.state !== 'synced');
+  const orders = await api('GET', '/orders');\n  const queued = outboxRead().filter(x => x.owner === queueOwner() && x.state !== 'synced' && x.state !== 'cancelled');
   const filter = h('select', {onchange: () => draw()}, h('option', {value: ''}, `${t('status')}: *`), STATUSES.map((s) => h('option', {value: s}, t('st_' + s))));
   const q = h('input', {placeholder: t('search'), oninput: () => draw(), style: 'max-width:220px'});
   const list = h('div', {});
@@ -94,13 +94,10 @@ route('orders', async () => {
   draw();
   const pending = S.me.verification === 'pending' ? h('div', {class: 'card warn'}, t('pending_verification')) : null;
   const queuedBox = queued.length ? h('div', {class: 'card warn'}, h('b', {}, 'Локальная очередь: ' + queued.length), h('p', {class: 'muted small'}, 'Заявки сохранены на этом устройстве и ожидают синхронизации. Не очищайте данные приложения.'), ...queued.map(item => h('div', {class: 'row'}, h('span', {class: 'grow'}, (item.payload.title || 'Заявка') + ' · ' + (item.state === 'error' ? 'ошибка синхронизации' : 'ожидает отправки')), h('button', {class: 'ghost small', onclick: guard(async () => {
-      if(!await confirmBox('Отменить локальную заявку? Если отправка уже началась, отмена будет отклонена.')) return;
-      if(window.AndroidBridge && typeof window.AndroidBridge.cancelOrderSync === 'function') {
-        let canceled=false;
-        try { const result=window.AndroidBridge.cancelOrderSync(String(item.id)); canceled=(result===true || result==='true' || result===1); } catch (_) {}
-        if(!canceled) { toast('Не удалось подтвердить отмену: заявка уже отправляется, отправлена или не найдена. Запись оставлена.', true); return; }
-      }
-      outboxWrite(outboxRead().filter(x=>x.id!==item.id)); render();
+      if(item.attempted || item.state==='sending' || item.state==='uncertain' || item.state==='synced') { toast('Отмена невозможна: отправка уже начиналась. Сначала выполните безопасную синхронизацию с тем же ID.', true); return; }
+      if(!await confirmBox('Отменить локальную заявку? Она ещё не отправлялась.')) return;
+      const entries=outboxRead().map(x=>x.id===item.id && x.owner===queueOwner()?{...x,state:'cancelled',cancelled_at:new Date().toISOString()}:x);
+      outboxWrite(entries); render();
     })}, 'Отменить'))), h('button', {class: 'ghost', onclick: guard(async()=>{await syncOrderOutbox();render();})}, 'Синхронизировать'));\n  syncOrderOutbox().catch(()=>{});\n  return h('div', {}, pending, queuedBox, h('div', {class: 'row'}, h('h1', {class: 'grow'}, t('orders')), q, filter, h('button', {class: 'ghost', onclick: () => render()}, t('refresh'))), list);
 });
 
