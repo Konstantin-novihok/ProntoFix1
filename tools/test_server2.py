@@ -1,6 +1,6 @@
 """Тест новых возможностей: администратор, скины, подрядчики, финансы, маршруты и трекинг, склад, чат, хранилище файлов, графики, Excel.
 Запуск:  cd server && PYTHONPATH=. python ../tools/test_server2.py"""
-import io, os, tempfile, datetime as dt
+import io, os, tempfile, datetime as dt, concurrent.futures
 os.environ["DATA_DIR"] = tempfile.mkdtemp()
 os.environ["OWNER_PASSWORD"] = "ownerpass"
 from fastapi.testclient import TestClient
@@ -91,6 +91,20 @@ with TestClient(server.app) as c:
           "same idempotency key returns same order")
     idem_changed = c.post("/orders", json={"title": "Другая заявка"}, headers=idem_headers)
     check(idem_changed.status_code == 409, "same idempotency key with changed payload is rejected")
+    # Concurrent identical submissions must converge to exactly one durable order.
+    def concurrent_submit(_):
+        return c.post("/orders", json={"title": "Параллельная заявка"},
+                      headers={**H(CL), "X-Client-Request-ID": "test-idempotency-concurrent-001"})
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        parallel = list(pool.map(concurrent_submit, range(16)))
+    check(all(r.status_code == 200 for r in parallel),
+          "concurrent same-key requests all receive a successful idempotent result")
+    parallel_ids = {r.json()["id"] for r in parallel}
+    check(len(parallel_ids) == 1, "concurrent same-key requests create exactly one order")
+    with server.SessionLocal() as _db:
+        _receipts = list(_db.scalars(server.select(server.OrderSyncKey).where(
+            server.OrderSyncKey.client_key == "test-idempotency-concurrent-001")))
+        check(len(_receipts) == 1, "concurrent idempotency receipt is unique")
     idem_other = c.post("/orders", json={"title": "Случайный конфликт"}, headers={**H(A), "X-Client-Request-ID": "test-idempotency-repeat-001"})
     check(idem_other.status_code == 409, "idempotency key cannot be reused across accounts")
     c.post(f"/orders/{o1['id']}/assign", json={"executor_id": ex1["id"]}, headers=H(A))
