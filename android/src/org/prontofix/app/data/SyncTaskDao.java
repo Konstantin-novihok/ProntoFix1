@@ -14,5 +14,7 @@ import java.util.List;
  /** Compare-and-set reservation prevents duplicate delivery by overlapping workers. */
  @Query("UPDATE sync_tasks SET status='SENDING',updatedAt=:now,lastError=NULL,attempts=attempts+1 WHERE id=:id AND status IN ('WAITING','RETRY')") public abstract int claim(String id,long now);
  @Query("UPDATE sync_tasks SET remoteOrderId=:remoteId,status='UPLOADED',updatedAt=:now,lastError=NULL WHERE id=:id") public abstract int setConfirmed(String id,long remoteId,long now);
+ /** Only stale leases may be reclaimed; never reset a fresh in-flight request. */
+ @Query("UPDATE sync_tasks SET status='RETRY',lastError='Recovered expired worker lease' WHERE status='SENDING' AND updatedAt<:cutoff") public abstract int reclaimExpired(long cutoff);
  @Query("DELETE FROM sync_tasks WHERE id=:id") public abstract int delete(String id);
 }
