@@ -16,6 +16,8 @@ import java.util.List;
  @Query("UPDATE attachments SET status='CANCELED',lastError=NULL WHERE id=:id AND status NOT IN ('UPLOADED','CANCELED')") int cancel(String id);
  /** Only stale leases may be reclaimed. */
  @Query("UPDATE attachments SET status='RETRY',lastError='Recovered expired worker lease' WHERE status='SENDING' AND updatedAt<:cutoff") int reclaimExpired(long cutoff);
- @Query("UPDATE attachments SET status='SENDING',updatedAt=:now,lastError=NULL,attempts=attempts+1 WHERE id=:id AND status IN ('WAITING','RETRY')") int claimAt(String id,long now);
+ @Query("UPDATE attachments SET status='SENDING',updatedAt=:now,lastError=NULL,attempts=attempts+1,leaseOwner=:owner WHERE id=:id AND status IN ('WAITING','RETRY')") int claimAt(String id,long now,String owner);
+ @Query("UPDATE attachments SET status=:status,lastError=:error,leaseOwner=NULL WHERE id=:id AND leaseOwner=:owner AND status='SENDING'") int finishOwned(String id,String owner,String status,String error);
+ @Query("UPDATE attachments SET status='UPLOADED',remoteId=:remoteId,lastError=NULL,leaseOwner=NULL WHERE id=:id AND leaseOwner=:owner AND status='SENDING'") int setUploadedOwned(String id,String remoteId,String owner);
  @Query("DELETE FROM attachments WHERE id=:id") int delete(String id);
 }
