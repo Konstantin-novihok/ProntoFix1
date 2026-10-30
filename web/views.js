@@ -97,7 +97,7 @@ route('orders', async () => {
       if(!await confirmBox('Отменить локальную заявку? Если отправка уже началась, отмена будет отклонена.')) return;
       if(window.AndroidBridge && typeof window.AndroidBridge.cancelOrderSync === 'function') {
         let canceled=false;
-        try { canceled=window.AndroidBridge.cancelOrderSync(String(item.id)) === true || window.AndroidBridge.cancelOrderSync(String(item.id)) === 'true'; } catch (_) {}
+        try { const result=window.AndroidBridge.cancelOrderSync(String(item.id)); canceled=(result===true || result==='true' || result===1); } catch (_) {}
         if(!canceled) { toast('Не удалось подтвердить отмену: заявка уже отправляется, отправлена или не найдена. Запись оставлена.', true); return; }
       }
       outboxWrite(outboxRead().filter(x=>x.id!==item.id)); render();
