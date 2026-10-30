@@ -27,6 +27,7 @@ from sqlalchemy import (Boolean, inspect as sa_inspect, text as sa_text, DateTim
                         Text, and_, create_engine, func, or_, select)
 from sqlalchemy.orm import (DeclarativeBase, Mapped, Session, mapped_column,
                             sessionmaker)
+from sqlalchemy.exc import IntegrityError
 
 # ───────────────────────── Настройки ─────────────────────────
 DATA_DIR = os.getenv("DATA_DIR", "./data")
@@ -816,7 +817,20 @@ def create_order(b: OrderIn, request: Request, user: User = Depends(current_user
     if client_key:
         db.add(OrderSyncKey(user_id=user.id, client_key=client_key, order_id=o.id))
     log(db, user, "create_order", "order", o.id, o.title)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # Two concurrent retries can both miss the initial receipt lookup.
+        # The unique key is the final arbiter; rollback the losing transaction,
+        # then return the already-committed order only to its owning account.
+        db.rollback()
+        if client_key:
+            receipt = db.scalar(select(OrderSyncKey).where(OrderSyncKey.client_key == client_key))
+            if receipt and receipt.user_id == user.id:
+                existing = db.get(Order, receipt.order_id)
+                if existing:
+                    return order_out(db, existing, user)
+        raise HTTPException(409, "Idempotency key conflict; retry with the original request ID")
     return order_out(db, o, user)
 
 
