@@ -1,0 +1,15 @@
+package org.prontofix.app.data;
+import androidx.room.Dao;
+import androidx.room.Insert;
+import androidx.room.OnConflictStrategy;
+import androidx.room.Query;
+import androidx.room.Transaction;
+import java.util.List;
+@Dao public abstract class SyncTaskDao {
+ @Insert(onConflict=OnConflictStrategy.IGNORE) public abstract long insert(SyncTask task);
+ @Query("SELECT * FROM sync_tasks WHERE id=:id LIMIT 1") public abstract SyncTask get(String id);
+ @Query("SELECT * FROM sync_tasks ORDER BY createdAt ASC") public abstract List<SyncTask> all();
+ @Query("SELECT * FROM sync_tasks WHERE status IN ('WAITING','RETRY','SENDING') ORDER BY createdAt ASC") public abstract List<SyncTask> pending();
+ @Query("UPDATE sync_tasks SET status=:status,updatedAt=:now,lastError=:error,attempts=attempts+:attemptDelta WHERE id=:id") public abstract int setState(String id,String status,long now,String error,int attemptDelta);
+ @Query("DELETE FROM sync_tasks WHERE id=:id") public abstract int delete(String id);
+}
