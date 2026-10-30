@@ -353,8 +353,11 @@ def arrive(rid: int, b: ArriveIn, user: User = Depends(current_user), db: Sessio
     # когда закончился предыдущий этап → точки трекинга между этим моментом и «сейчас»
     prev_times = [dt.datetime.fromisoformat(s["arrived_at"]) for s in stops if s["arrived_at"]]
     since = max(prev_times) if prev_times else r.created_at
-    pts = db.scalars(select(TrackPoint).where(TrackPoint.user_id == r.user_id, TrackPoint.ts >= since, TrackPoint.ts <= t_now)
-                     .order_by(TrackPoint.ts)).all()
+    # Do not use historical GPS traces for mileage once organization tracking is disabled.
+    pref = db.get(TrackingPreference, r.user_id)
+    tracking_allowed = pref is None or pref.enabled
+    pts = (db.scalars(select(TrackPoint).where(TrackPoint.user_id == r.user_id, TrackPoint.ts >= since, TrackPoint.ts <= t_now)
+                      .order_by(TrackPoint.ts)).all() if tracking_allowed else [])
     tracked = tracked_distance_km(pts) if len(pts) >= 2 else 0.0
     planned = stops[idx]["planned_leg_km"]
     leg, source = (tracked, "tracked") if tracked > 0.05 else (planned, stops[idx]["leg_source"])
