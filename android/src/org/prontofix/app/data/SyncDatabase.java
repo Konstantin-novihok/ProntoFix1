@@ -6,11 +6,14 @@ import androidx.room.Room;
 import androidx.room.RoomDatabase;
 import androidx.room.migration.Migration;
 import androidx.sqlite.db.SupportSQLiteDatabase;
-@Database(entities={SyncTask.class,Attachment.class},version=2,exportSchema=false)
+@Database(entities={SyncTask.class,Attachment.class},version=3,exportSchema=false)
 public abstract class SyncDatabase extends RoomDatabase {
  private static volatile SyncDatabase INSTANCE;
  public abstract SyncTaskDao tasks();
  public abstract AttachmentDao attachments();
+ public static final Migration MIGRATION_2_3=new Migration(2,3){
+  @Override public void migrate(@NonNull SupportSQLiteDatabase db){db.execSQL("ALTER TABLE sync_tasks ADD COLUMN remoteOrderId INTEGER");}
+ };
  public static final Migration MIGRATION_1_2=new Migration(1,2){
   @Override public void migrate(@NonNull SupportSQLiteDatabase db){
    db.execSQL("CREATE TABLE IF NOT EXISTS sync_tasks (id TEXT NOT NULL PRIMARY KEY, kind TEXT NOT NULL, payload TEXT NOT NULL, authToken TEXT, status TEXT NOT NULL, attempts INTEGER NOT NULL, createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL, lastError TEXT)");
@@ -20,7 +23,7 @@ public abstract class SyncDatabase extends RoomDatabase {
   }
  };
  public static SyncDatabase get(Context c){
-  if(INSTANCE==null) synchronized(SyncDatabase.class){if(INSTANCE==null) INSTANCE=Room.databaseBuilder(c.getApplicationContext(),SyncDatabase.class,"hm-sync.db").addMigrations(MIGRATION_1_2).build();}
+  if(INSTANCE==null) synchronized(SyncDatabase.class){if(INSTANCE==null) INSTANCE=Room.databaseBuilder(c.getApplicationContext(),SyncDatabase.class,"hm-sync.db").addMigrations(MIGRATION_1_2,MIGRATION_2_3).build();}
   return INSTANCE;
  }
 }
