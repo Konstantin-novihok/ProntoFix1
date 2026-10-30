@@ -34,6 +34,7 @@ class NoticeSend(BaseModel):
     sound: bool = False
     recipient_ids: list[int] = Field(default_factory=list, max_length=500)
     roles: list[int] = Field(default_factory=list, max_length=10)
+    group_ids: list[int] = Field(default_factory=list, max_length=200)
 
 
 def notice_out(n: Notice):
@@ -52,15 +53,23 @@ def send_notice(b: NoticeSend, user: User = Depends(current_user), db: Session =
         raise HTTPException(400, "Unsupported priority")
     if b.priority == "critical" and not b.sound:
         raise HTTPException(400, "Critical notification requires sound enabled")
-    if not b.recipient_ids and not b.roles:
-        raise HTTPException(400, "Choose recipients or roles")
+    import json
+    group_member_ids = set()
+    for gid in set(b.group_ids):
+        group = db.get(NoticeGroup, gid)
+        if group is None:
+            raise HTTPException(400, f"Unknown notification group: {gid}")
+        group_member_ids.update(json.loads(group.member_ids or "[]"))
+    target_ids = set(b.recipient_ids) | group_member_ids
+    if not target_ids and not b.roles:
+        raise HTTPException(400, "Choose recipients, groups or roles")
     if any(r not in STAFF_ROLES for r in b.roles):
         raise HTTPException(400, "Unsupported recipient role")
     q = select(User).where(User.is_active.is_(True))
-    if b.recipient_ids and b.roles:
-        q = q.where((User.id.in_(b.recipient_ids)) | (User.role.in_(b.roles)))
-    elif b.recipient_ids:
-        q = q.where(User.id.in_(b.recipient_ids))
+    if target_ids and b.roles:
+        q = q.where((User.id.in_(target_ids)) | (User.role.in_(b.roles)))
+    elif target_ids:
+        q = q.where(User.id.in_(target_ids))
     else:
         q = q.where(User.role.in_(b.roles))
     recipients = db.scalars(q).all()
@@ -74,7 +83,7 @@ def send_notice(b: NoticeSend, user: User = Depends(current_user), db: Session =
         created.append(n)
     db.flush()
     log(db, user, "notification_broadcast", "notification", None,
-        f"count={len(created)} category={b.category} priority={b.priority}")
+        f"count={len(created)} category={b.category} priority={b.priority} groups={sorted(set(b.group_ids))}")
     db.commit()
     return {"sent": len(created), "ids": [n.id for n in created]}
 
