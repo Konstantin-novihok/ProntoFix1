@@ -9,7 +9,21 @@ public final class SyncRepository {
  private final SyncDatabase db;
  public SyncRepository(Context c){db=SyncDatabase.get(c);}
  public void enqueueOrder(String json,String token){
-  IO.execute(()->{long now=System.currentTimeMillis();db.tasks().insert(new SyncTask(UUID.randomUUID().toString(),"ORDER",json,token,WAITING,now));});
+  enqueueOrder(UUID.randomUUID().toString(),json,token,null);
+ }
+ /** Stable IDs make retrying a legacy migration idempotent. Callback runs only after Room commit. */
+ public void enqueueOrder(String stableId,String json,String token,Runnable committed){
+  IO.execute(()->{
+   try {
+    db.runInTransaction(()->{
+     SyncTask found=db.tasks().get(stableId);
+     if(found==null) db.tasks().insert(new SyncTask(stableId,"ORDER",json,token,WAITING,System.currentTimeMillis()));
+     SyncTask verify=db.tasks().get(stableId);
+     if(verify==null || !"ORDER".equals(verify.kind)) throw new IllegalStateException("Task ID collision");
+    });
+    if(committed!=null) committed.run();
+   } catch(Exception ignored) { /* Keep source record; caller may retry migration. */ }
+  });
  }
  public void enqueueAttachment(Attachment item){IO.execute(()->db.attachments().insert(item));}
  public void setTaskState(String id,String state,String error,int attempts){IO.execute(()->db.tasks().setState(id,state,System.currentTimeMillis(),error,attempts));}
