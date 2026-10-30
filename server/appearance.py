@@ -63,6 +63,12 @@ def sanitize_skin(d: Any) -> dict:
 
 
 # ---------- Настройки приложения ----------
+# Currency codes offered by the app. Existing stored values remain valid only when in this list.
+SUPPORTED_CURRENCIES = {
+    "UAH", "USD", "EUR", "GBP", "PLN", "CZK", "HUF", "RON", "MDL", "BGN",
+    "CHF", "CAD", "AUD", "JPY", "CNY", "TRY", "AED", "SAR", "SEK", "NOK",
+    "DKK", "ISK", "HRK", "RSD", "GEL", "KZT", "INR", "ILS", "MXN", "BRL",
+}
 PUBLIC_KEYS = ["app_name", "company_name", "currency", "service_types", "default_skin", "id_rules_text"]
 
 
@@ -94,6 +100,10 @@ def save_settings(b: SettingsIn, user: User = Depends(current_user), db: Session
         default = SETTING_DEFAULTS[k]
         if k == "default_skin":
             v = None if v is None else sanitize_skin(v)
+        elif k == "currency":
+            v = str(v).strip().upper()
+            if v not in SUPPORTED_CURRENCIES:
+                raise HTTPException(400, "Unsupported currency code")
         elif k == "service_types":
             if not isinstance(v, list) or len(v) > 60:
                 raise HTTPException(400, "service_types must be a list (max 60)")
