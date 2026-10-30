@@ -213,6 +213,8 @@ def save_notice_group(b: NoticeGroupIn, user: User = Depends(current_user), db: 
         db.add(group)
     group.member_ids = json.dumps(sorted(set(b.member_ids)))
     group.updated_by = user.id
+    # Flush first so creation audit events always carry the durable group ID.
+    db.flush()
     log(db,user,"notification_group_save","notification_group",group.id,f"name={name} members={len(b.member_ids)}")
     db.commit()
     return {"ok":True,"id":group.id,"member_count":len(b.member_ids)}
