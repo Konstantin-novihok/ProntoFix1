@@ -24,6 +24,46 @@ from server import (ADMINS, EXECUTOR, HEAD, STAFF_ROLES, Base, Order, User, curr
 router = APIRouter()
 
 
+class TrackingPreference(Base):
+    __tablename__ = "tracking_preferences"
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime, default=now)
+    updated_by: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+
+class TrackingPreferenceIn(BaseModel):
+    enabled: bool
+
+
+@router.get("/tracking/preferences")
+def list_tracking_preferences(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    need(user, *ADMINS)
+    members = db.scalars(select(User).where(User.role.in_(STAFF_ROLES), User.is_active == True).order_by(User.full_name, User.username)).all()  # noqa: E712
+    prefs = {p.user_id: p.enabled for p in db.scalars(select(TrackingPreference)).all()}
+    return [dict(user_id=m.id, full_name=m.full_name or m.username, username=m.username,
+                 role=m.role, enabled=prefs.get(m.id, True), last_seen=m.last_seen.isoformat() if m.last_seen else None,
+                 last_lat=m.last_lat, last_lon=m.last_lon) for m in members]
+
+
+@router.put("/tracking/preferences/{uid}")
+def set_tracking_preference(uid: int, b: TrackingPreferenceIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    need(user, *ADMINS)
+    target = db.get(User, uid)
+    if not target or target.role not in STAFF_ROLES or not target.is_active:
+        raise HTTPException(404, "Active staff member not found")
+    pref = db.get(TrackingPreference, uid)
+    if pref is None:
+        pref = TrackingPreference(user_id=uid, enabled=b.enabled)
+        db.add(pref)
+    else:
+        pref.enabled = b.enabled
+    pref.updated_at, pref.updated_by = now(), user.id
+    log(db, user, "tracking_preference", "user", uid, "enabled" if b.enabled else "disabled")
+    db.commit()
+    return dict(user_id=uid, enabled=pref.enabled, updated_at=pref.updated_at.isoformat())
+
+
 class TrackPoint(Base):
     __tablename__ = "track_points"
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -369,6 +409,9 @@ class PointsIn(BaseModel):
 @router.post("/tracking/points")
 def add_points(b: PointsIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
     need(user, *STAFF_ROLES)
+    pref = db.get(TrackingPreference, user.id)
+    if pref is not None and not pref.enabled:
+        raise HTTPException(403, "Location tracking is disabled by organization policy")
     if not b.points or len(b.points) > 500:
         raise HTTPException(400, "1..500 points")
     last = None
