@@ -44,7 +44,8 @@ def list_tracking_preferences(user: User = Depends(current_user), db: Session = 
     return [dict(user_id=m.id, full_name=m.full_name or m.username, username=m.username,
                  role=m.role, enabled=prefs.get(m.id, True), last_seen=m.last_seen.isoformat() if m.last_seen else None,
                  last_lat=m.last_lat, last_lon=m.last_lon,
-                 last_location_at=m.last_location_at.isoformat() if m.last_location_at else None) for m in members]
+                 last_location_at=m.last_location_at.isoformat() if m.last_location_at else None,
+                 location_received_at=m.location_received_at.isoformat() if m.location_received_at else None) for m in members]
 
 
 @router.put("/tracking/preferences/{uid}")
@@ -452,9 +453,14 @@ def add_points(b: PointsIn, user: User = Depends(current_user), db: Session = De
         db.add(TrackPoint(user_id=user.id, route_id=b.route_id, lat=p.lat, lon=p.lon, accuracy=p.accuracy, speed=p.speed, ts=ts))
         if last is None or ts >= last[2]:
             last = (p.lat, p.lon, ts)
+    # GPS sample time and server receipt time are distinct. Delayed batches must
+    # not roll the employee's latest known coordinates backward.
+    received_at = now()
+    if user.last_location_at is None or last[2] >= user.last_location_at:
+        user.last_lat, user.last_lon = last[0], last[1]
+        user.last_location_at = last[2]
+    user.location_received_at = received_at
     # Location telemetry must not overwrite general account activity (last_seen).
-    user.last_lat, user.last_lon = last[0], last[1]
-    user.last_location_at = last[2]
     db.commit()
     return {"saved": len(b.points)}
 
