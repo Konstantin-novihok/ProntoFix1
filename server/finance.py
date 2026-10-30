@@ -131,7 +131,7 @@ def money(o: Order, ex: Optional[User], totals: dict, settled_pay: Optional[floa
         pay = 0.0
     cost = exp_total + pay
     margin = price - cost
-    return dict(price=r2(price), materials=r2(totals["material"]), transport=r2(totals["transport"]), other=r2(totals["other"]),
+    return dict(currency=o.currency or "UAH", price=r2(price), materials=r2(totals["material"]), transport=r2(totals["transport"]), other=r2(totals["other"]),
                 expenses_total=r2(exp_total), pay=r2(pay), cost_price=r2(cost), margin=r2(margin),
                 margin_pct=r2(margin / price * 100) if price else 0.0, labor_hours=o.labor_hours or 0.0,
                 km=o.distance_km or 0.0, settled=bool(o.settled_at))
@@ -157,7 +157,7 @@ class FinIn(BaseModel):
 @router.get("/orders/{oid}/finance")
 def get_order_finance(oid: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
     o = get_order(db, user, oid)
-    exps = [dict(id=e.id, kind=e.kind, description=e.description, qty=e.qty, unit_cost=e.unit_cost, amount=r2(e.amount), auto=e.auto)
+    exps = [dict(id=e.id, kind=e.kind, description=e.description, qty=e.qty, unit_cost=e.unit_cost, amount=r2(e.amount), currency=e.currency or o.currency or "UAH", auto=e.auto)
             for e in db.scalars(select(Expense).where(Expense.order_id == oid).order_by(Expense.id))]
     full = order_finance(db, o)
     if user.role in ADMINS or user.role in (HEAD, OBSERVER):
@@ -249,10 +249,11 @@ def settle(oid: int, user: User = Depends(current_user), db: Session = Depends(g
     ex = db.get(User, o.executor_id) if o.executor_id else None
     new_balance = None
     if o.client_id and o.price > 0:
-        bal = balance_of(db, o.client_id)
+        order_cur = currency_code(o.currency)
+        bal = balance_of(db, o.client_id, order_cur)
         if not get_setting(db, "overdraft_allowed") and bal - o.price < 0:
             raise HTTPException(400, f"Insufficient prepayment: balance {bal}, price {o.price}")
-        db.add(Transaction(client_id=o.client_id, order_id=o.id, kind="charge", amount=-r2(o.price),
+        db.add(Transaction(client_id=o.client_id, order_id=o.id, kind="charge", amount=-r2(o.price), currency=order_cur,
                            note=f"Order #{o.id}", created_by=user.id))
         new_balance = r2(bal - o.price)
     pay = None
@@ -304,7 +305,7 @@ def adjust(b: AdjustIn, user: User = Depends(current_user), db: Session = Depend
     db.add(Transaction(client_id=c.id, kind="adjust", amount=r2(b.amount), currency=cur, note=b.note[:300], created_by=user.id))
     log(db, user, "finance_adjust", "user", c.id, f"{b.amount} {b.note}")
     db.commit()
-    return {"balance": balance_of(db, c.id)}
+    return {"currency": cur, "balance": balance_of(db, c.id, cur), "balances": balances_by_currency(db, c.id)}
 
 
 def tx_out(t: Transaction):
