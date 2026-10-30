@@ -93,8 +93,21 @@ route('contractors', async () => {
 // ───────────── Настройки приложения ─────────────
 route('appsettings', async () => {
   const s = await api('GET', '/settings');
+  const currencyOptions = [
+    ['UAH', 'UAH — гривна'], ['USD', 'USD — доллар США'], ['EUR', 'EUR — евро'], ['GBP', 'GBP — фунт'],
+    ['PLN', 'PLN — злотый'], ['CZK', 'CZK — чешская крона'], ['HUF', 'HUF — форинт'], ['RON', 'RON — румынский лей'],
+    ['MDL', 'MDL — молдавский лей'], ['BGN', 'BGN — болгарский лев'], ['CHF', 'CHF — швейцарский франк'],
+    ['CAD', 'CAD — канадский доллар'], ['AUD', 'AUD — австралийский доллар'], ['JPY', 'JPY — иена'],
+    ['CNY', 'CNY — юань'], ['TRY', 'TRY — турецкая лира'], ['AED', 'AED — дирхам ОАЭ'],
+    ['SAR', 'SAR — саудовский риял'], ['SEK', 'SEK — шведская крона'], ['NOK', 'NOK — норвежская крона'],
+    ['DKK', 'DKK — датская крона'], ['ISK', 'ISK — исландская крона'], ['HRK', 'HRK — куна'],
+    ['RSD', 'RSD — сербский динар'], ['GEL', 'GEL — лари'], ['KZT', 'KZT — тенге'],
+    ['INR', 'INR — индийская рупия'], ['ILS', 'ILS — новый шекель'], ['MXN', 'MXN — мексиканское песо'],
+    ['BRL', 'BRL — бразильский реал']
+  ];
+  const currencySelect = selectEl(currencyOptions.map(([value, label]) => ({value, label})), s.currency || 'UAH');
   const F = {
-    company_name: h('input', {value: s.company_name || ''}), currency: h('input', {value: s.currency || '', style: 'max-width:120px'}),
+    company_name: h('input', {value: s.company_name || ''}), currency: currencySelect,
     cost_per_km: h('input', {type: 'number', step: 'any', value: s.cost_per_km}), road_factor: h('input', {type: 'number', step: '0.05', value: s.road_factor}),
     overdraft_allowed: h('input', {type: 'checkbox', checked: !!s.overdraft_allowed}), require_employee_no: h('input', {type: 'checkbox', checked: !!s.require_employee_no}),
     id_rules_text: h('textarea', {value: s.id_rules_text || ''}), service_types: h('textarea', {value: (s.service_types || []).join('\n'), style: 'min-height:140px'}),
