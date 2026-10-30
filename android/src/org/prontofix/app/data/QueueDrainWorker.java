@@ -8,11 +8,13 @@ import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 /** Serial queue drain: confirm orders before uploading their attachments. */
 public final class QueueDrainWorker extends Worker {
  public QueueDrainWorker(@NonNull Context c,@NonNull WorkerParameters p){super(c,p);}
  @NonNull @Override public Result doWork(){
   SyncDatabase db=SyncDatabase.get(getApplicationContext());
+  String leaseOwner=UUID.randomUUID().toString();
   try {
    // A network attempt may outlive the normal interval; reclaim only after a conservative lease timeout.
    long leaseCutoff=System.currentTimeMillis()-15L*60L*1000L;
@@ -23,7 +25,7 @@ public final class QueueDrainWorker extends Worker {
     if(!"ORDER".equals(task.kind))continue;
     task=db.tasks().get(task.id); if(task==null||"CANCELED".equals(task.status))continue;
     if("UPLOADED".equals(task.status))continue;
-    if(db.tasks().claim(task.id,System.currentTimeMillis())!=1)continue;
+    if(db.tasks().claim(task.id,System.currentTimeMillis(),leaseOwner)!=1)continue;
     try{
      JSONObject env=new JSONObject(task.payload); String base=env.getString("baseUrl").replaceAll("/+$","");
      HttpURLConnection con=(HttpURLConnection)new URL(base+"/orders").openConnection();
@@ -32,11 +34,11 @@ public final class QueueDrainWorker extends Worker {
      byte[] bytes=env.getJSONObject("body").toString().getBytes(StandardCharsets.UTF_8);con.setFixedLengthStreamingMode(bytes.length);
      try(OutputStream out=con.getOutputStream()){out.write(bytes);}
      int status=con.getResponseCode(); String response=readResponse(con,status);con.disconnect();
-     if(status>=200&&status<300){long remote=new JSONObject(response).getLong("id");db.tasks().setConfirmed(task.id,remote,System.currentTimeMillis());}
-     else if(status==401){db.tasks().setState(task.id,SyncRepository.ERROR,System.currentTimeMillis(),"HTTP 401: требуется повторная авторизация",0);}
-     else if(status==400||status==403||status==404||status==409||status==422){db.tasks().setState(task.id,SyncRepository.ERROR,System.currentTimeMillis(),"HTTP "+status+": "+response,0);}
-     else {db.tasks().setState(task.id,SyncRepository.RETRY,System.currentTimeMillis(),"HTTP "+status,0);return Result.retry();}
-    }catch(Exception e){db.tasks().setState(task.id,SyncRepository.RETRY,System.currentTimeMillis(),e.getClass().getSimpleName()+": "+e.getMessage(),0);return Result.retry();}
+     if(status>=200&&status<300){long remote=new JSONObject(response).getLong("id");db.tasks().confirmOwned(task.id,remote,System.currentTimeMillis(),leaseOwner);}
+     else if(status==401){db.tasks().finishOwned(task.id,leaseOwner,SyncRepository.ERROR,System.currentTimeMillis(),"HTTP 401: требуется повторная авторизация");}
+     else if(status==400||status==403||status==404||status==409||status==422){db.tasks().finishOwned(task.id,leaseOwner,SyncRepository.ERROR,System.currentTimeMillis(),"HTTP "+status+": "+response);}
+     else {db.tasks().finishOwned(task.id,leaseOwner,SyncRepository.RETRY,System.currentTimeMillis(),"HTTP "+status);return Result.retry();}
+    }catch(Exception e){db.tasks().finishOwned(task.id,leaseOwner,SyncRepository.RETRY,System.currentTimeMillis(),e.getClass().getSimpleName()+": "+e.getMessage());return Result.retry();}
    }
    boolean retry=false;
    for(Attachment item:db.attachments().pending()){
@@ -53,7 +55,7 @@ public final class QueueDrainWorker extends Worker {
     }
     File file=new File(item.localPath);
     if(!file.isFile()){db.attachments().setState(item.id,SyncRepository.ERROR,"Local attachment file is missing",0);continue;}
-    if(db.attachments().claimAt(item.id,System.currentTimeMillis())!=1)continue;
+    if(db.attachments().claimAt(item.id,System.currentTimeMillis(),leaseOwner)!=1)continue;
     HttpURLConnection con=null;
     try{
      JSONObject env=new JSONObject(parent.payload);String base=env.getString("baseUrl").replaceAll("/+$","");
@@ -75,15 +77,15 @@ public final class QueueDrainWorker extends Worker {
      int status=con.getResponseCode();String response=readResponse(con,status);
      if(status>=200&&status<300){
       String remote=new JSONObject(response).getString("id");
-      int persisted=db.attachments().setUploaded(item.id,remote);
+      int persisted=db.attachments().setUploadedOwned(item.id,remote,leaseOwner);
       // Keep the local copy unless Room confirms the receipt update.
       if(persisted>0)file.delete();
-      else {db.attachments().setState(item.id,SyncRepository.RETRY,"Server accepted upload but local receipt was not persisted; retry is idempotent",0);retry=true;}
-     }else if(status==401){db.attachments().setState(item.id,SyncRepository.ERROR,"HTTP 401: требуется повторная авторизация",0);}
-     else if(status==400||status==403||status==404||status==409||status==413||status==422){db.attachments().setState(item.id,SyncRepository.ERROR,"HTTP "+status+": "+response,0);}
-     else{db.attachments().setState(item.id,SyncRepository.RETRY,"HTTP "+status,0);retry=true;}
-    }catch(InterruptedIOException e){db.attachments().setState(item.id,SyncRepository.RETRY,"Upload interrupted; safe to retry",0);return Result.retry();}
-    catch(Exception e){db.attachments().setState(item.id,SyncRepository.RETRY,e.getClass().getSimpleName()+": "+e.getMessage(),0);retry=true;}
+      else {db.attachments().finishOwned(item.id,leaseOwner,SyncRepository.RETRY,"Server accepted upload but local receipt was not persisted; retry is idempotent");retry=true;}
+     }else if(status==401){db.attachments().finishOwned(item.id,leaseOwner,SyncRepository.ERROR,"HTTP 401: требуется повторная авторизация");}
+     else if(status==400||status==403||status==404||status==409||status==413||status==422){db.attachments().finishOwned(item.id,leaseOwner,SyncRepository.ERROR,"HTTP "+status+": "+response);}
+     else{db.attachments().finishOwned(item.id,leaseOwner,SyncRepository.RETRY,"HTTP "+status);retry=true;}
+    }catch(InterruptedIOException e){db.attachments().finishOwned(item.id,leaseOwner,SyncRepository.RETRY,"Upload interrupted; safe to retry");return Result.retry();}
+    catch(Exception e){db.attachments().finishOwned(item.id,leaseOwner,SyncRepository.RETRY,e.getClass().getSimpleName()+": "+e.getMessage());retry=true;}
     finally{if(con!=null)con.disconnect();}
    }
    if(retry)return Result.retry();
