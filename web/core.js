@@ -102,7 +102,14 @@ async function syncOrderOutbox() {
   try {
     const all=outboxRead(), owned=all.filter(x=>x.owner===queueOwner());
     for(const item of owned) {
-      if(item.state==='cancelled' || item.state==='synced' || item.state==='sending') continue;
+      if(item.state==='cancelled' || item.state==='synced') continue;
+      // A prior page may have closed while its request was in flight. With the
+      // same idempotency key, retry is safer than leaving the entry stuck.
+      if(item.state==='sending') {
+        item.state='uncertain';
+        item.last_error='Восстановлено после прерывания; сервер мог принять заявку';
+        outboxWrite(outboxRead().map(x=>x.id===item.id?item:x));
+      }
       item.state='sending'; item.attempted=true; item.attempted_at=new Date().toISOString();
       outboxWrite(outboxRead().map(x=>x.id===item.id?item:x));
       try {
