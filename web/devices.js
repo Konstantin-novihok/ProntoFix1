@@ -111,7 +111,16 @@ async function toJpeg(blob) {
   return new Promise((r) => c.toBlob(r, 'image/jpeg', 0.95));
 }
 async function cameraCapture() {
-  if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) throw new Error(t('no_camera'));
+  // HTTP origins in Android WebView are not secure contexts: getUserMedia is absent
+  // even when Android CAMERA permission is granted. Fall back to Android's file picker;
+  // it may offer Camera/Gallery depending on device. Live in-app capture needs HTTPS.
+  if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
+    const files = await chooseFiles('image/*', false, 'environment');
+    if (!files || !files.length) return null;
+    const f = files[0];
+    if (!f.type || !f.type.startsWith('image/')) throw new Error('Выберите файл изображения.');
+    return f;
+  }
   const stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: {ideal: 'environment'}, width: {ideal: 4096}, height: {ideal: 3072}}, audio: false});
   return new Promise((resolve) => {
     const video = h('video', {class: 'cam', autoplay: true, playsinline: true, muted: true});
