@@ -70,3 +70,26 @@ jobs:
           path: android/HomeMaster.apk
           if-no-files-found: error
           retention-days: 14
+
+  android-gradle-validation:
+    name: Validate Gradle Android configuration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - name: Compile Android app with Room and WorkManager dependencies
+        working-directory: android
+        run: gradle --no-daemon :app:assembleDebug
+      - name: Upload Gradle APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: HomeMaster-Gradle-debug-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
