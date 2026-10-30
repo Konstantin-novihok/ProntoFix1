@@ -127,6 +127,7 @@ class User(Base):
     last_lat: Mapped[Optional[float]] = mapped_column(Float, nullable=True)      # последнее известное положение (трекинг)
     last_lon: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     last_location_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime, nullable=True)  # timestamp последнего GPS-пакета
+    location_received_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime, nullable=True)  # время приёма GPS сервером
     last_seen: Mapped[Optional[dt.datetime]] = mapped_column(DateTime, nullable=True)
 
 
