@@ -14,10 +14,13 @@ public final class QueueDrainWorker extends Worker {
  @NonNull @Override public Result doWork(){
   SyncDatabase db=SyncDatabase.get(getApplicationContext());
   try {
+   // A network attempt may outlive the normal interval; reclaim only after a conservative lease timeout.
+   long leaseCutoff=System.currentTimeMillis()-15L*60L*1000L;
+   db.tasks().reclaimExpired(leaseCutoff);
+   db.attachments().reclaimExpired(leaseCutoff);
    for(SyncTask task:db.tasks().pending()){
     if(isStopped())return Result.retry();
     if(!"ORDER".equals(task.kind))continue;
-    if("SENDING".equals(task.status))db.tasks().setState(task.id,SyncRepository.RETRY,System.currentTimeMillis(),"Recovered interrupted attempt",0);
     task=db.tasks().get(task.id); if(task==null||"CANCELED".equals(task.status))continue;
     if("UPLOADED".equals(task.status))continue;
     if(db.tasks().claim(task.id,System.currentTimeMillis())!=1)continue;
@@ -38,7 +41,6 @@ public final class QueueDrainWorker extends Worker {
    boolean retry=false;
    for(Attachment item:db.attachments().pending()){
     if(isStopped())return Result.retry();
-    if("SENDING".equals(item.status))db.attachments().setState(item.id,SyncRepository.RETRY,"Recovered interrupted upload",0);
     SyncTask parent=db.tasks().get(item.taskId);
     if(parent==null||"ERROR".equals(parent.status)||"CANCELED".equals(parent.status)){
      db.attachments().setState(item.id,SyncRepository.ERROR,parent==null?"Parent order task is missing":"Parent order cannot be synchronized: "+parent.status,0);continue;
@@ -51,7 +53,7 @@ public final class QueueDrainWorker extends Worker {
     }
     File file=new File(item.localPath);
     if(!file.isFile()){db.attachments().setState(item.id,SyncRepository.ERROR,"Local attachment file is missing",0);continue;}
-    if(db.attachments().claim(item.id)!=1)continue;
+    if(db.attachments().claimAt(item.id,System.currentTimeMillis())!=1)continue;
     HttpURLConnection con=null;
     try{
      JSONObject env=new JSONObject(parent.payload);String base=env.getString("baseUrl").replaceAll("/+$","");
