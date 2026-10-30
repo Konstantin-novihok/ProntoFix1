@@ -202,6 +202,7 @@ class ExpenseIn(BaseModel):
     description: str = ""
     qty: float = 1.0
     unit_cost: float = 0.0
+    currency: Optional[str] = None
 
 
 @router.post("/orders/{oid}/expenses")
@@ -213,6 +214,9 @@ def add_expense(oid: int, b: ExpenseIn, user: User = Depends(current_user), db: 
         raise HTTPException(403, "Forbidden")
     if b.kind not in ("material", "transport", "other") or b.qty <= 0 or b.unit_cost < 0:
         raise HTTPException(400, "Bad expense")
+    cur = currency_code(b.currency, o.currency or "UAH")
+    if cur != currency_code(o.currency):
+        raise HTTPException(400, "Expense currency must match the order currency")
     e = Expense(order_id=o.id, kind=b.kind, description=b.description[:300], qty=b.qty, unit_cost=b.unit_cost,
                 amount=r2(b.qty * b.unit_cost), currency=cur, created_by=user.id)
     db.add(e)
