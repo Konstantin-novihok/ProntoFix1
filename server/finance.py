@@ -45,7 +45,7 @@ class Expense(Base):
     unit_cost: Mapped[float] = mapped_column(Float, default=0.0)
     amount: Mapped[float] = mapped_column(Float, default=0.0)
     item_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)    # материал со склада
-    auto: Mapped[bool] = mapped_column(Boolean, default=False)                # создан автоматически (маршрут/склад)
+    auto: Mapped[bool] = mapped_column(Boolean, default=False)                # создан автоматически (маршрут/склад)\n    currency: Mapped[str] = mapped_column(String(3), default="UAH")
     created_by: Mapped[int] = mapped_column(Integer)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=now)
 
@@ -56,7 +56,7 @@ class OrderPay(Base):   # начисление исполнителю по за�
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     amount: Mapped[float] = mapped_column(Float)
-    basis: Mapped[str] = mapped_column(String(200), default="")
+    basis: Mapped[str] = mapped_column(String(200), default="")\n    currency: Mapped[str] = mapped_column(String(3), default="UAH")
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=now)
 
 
@@ -259,7 +259,7 @@ def prepayment(b: PrepayIn, user: User = Depends(current_user), db: Session = De
     c = db.get(User, b.client_id)
     if not c or c.role != CLIENT or b.amount <= 0:
         raise HTTPException(400, "Bad client or amount")
-    db.add(Transaction(client_id=c.id, kind="prepayment", amount=r2(b.amount), note=b.note[:300], created_by=user.id))
+    cur = currency_code(b.currency, get_setting(db, "currency"))\n    db.add(Transaction(client_id=c.id, kind="prepayment", amount=r2(b.amount), currency=cur, note=b.note[:300], created_by=user.id))
     log(db, user, "prepayment", "user", c.id, str(b.amount))
     db.commit()
     return {"balance": balance_of(db, c.id)}
@@ -277,7 +277,7 @@ def adjust(b: AdjustIn, user: User = Depends(current_user), db: Session = Depend
     c = db.get(User, b.client_id)
     if not c or c.role != CLIENT or b.amount == 0 or not b.note.strip():
         raise HTTPException(400, "Client, non-zero amount and a note are required")
-    db.add(Transaction(client_id=c.id, kind="adjust", amount=r2(b.amount), note=b.note[:300], created_by=user.id))
+    cur = currency_code(b.currency, get_setting(db, "currency"))\n    db.add(Transaction(client_id=c.id, kind="adjust", amount=r2(b.amount), currency=cur, note=b.note[:300], created_by=user.id))
     log(db, user, "finance_adjust", "user", c.id, f"{b.amount} {b.note}")
     db.commit()
     return {"balance": balance_of(db, c.id)}
@@ -311,7 +311,7 @@ def my_finance(user: User = Depends(current_user), db: Session = Depends(get_db)
     """Заказчик видит остаток своей предоплаты и историю списаний."""
     need(user, CLIENT)
     rows = db.scalars(select(Transaction).where(Transaction.client_id == user.id).order_by(Transaction.id.desc()).limit(200))
-    return dict(balance=balance_of(db, user.id), items=[tx_out(t) for t in rows])
+    return dict(balance=balance_of(db, user.id), balances=balances_by_currency(db, user.id), items=[tx_out(t) for t in rows])
 
 
 # ───────────── зарплата, премии, штрафы ─────────────
