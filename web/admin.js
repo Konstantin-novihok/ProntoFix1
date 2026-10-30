@@ -7,7 +7,7 @@
 
 route('admin', () => {
   const tiles = [
-    ['analytics', '📊', 'analytics', 'tile_analytics'], ['reports', '📑', 'reports', 'tile_reports'], ['finance', '💰', 'finance', 'tile_finance'],
+    ['notifications', '🔔', 'notifications', 'Notifications'], ['analytics', '📊', 'analytics', 'tile_analytics'], ['reports', '📑', 'reports', 'tile_reports'], ['finance', '💰', 'finance', 'tile_finance'],
     ['payroll', '🧾', 'payroll', 'tile_payroll'], ['contractors', '🤝', 'contractors', 'tile_contractors'], ['staffmap', '👥', 'staff_map', 'tile_staffmap'],
     ['routes', '🛣', 'routes', 'tile_routes'], ['files', '🗂', 'files', 'tile_files'], ['warehouse', '📦', 'warehouse', 'tile_warehouse'],
     ['users', '👤', 'users', 'tile_users'], ['departments', '🏢', 'departments', 'tile_departments'], ['appsettings', '⚙', 'app_settings', 'tile_settings'],
