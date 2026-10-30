@@ -157,3 +157,65 @@ def delete_template(template_id: int, user: User = Depends(current_user), db: Se
     db.delete(item)
     db.commit()
     return {"ok": True}
+
+
+class NoticeGroup(Base):
+    __tablename__ = "notification_groups"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    member_ids: Mapped[str] = mapped_column(Text, default="[]")
+    updated_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime, default=now, onupdate=now)
+
+
+class NoticeGroupIn(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    member_ids: list[int] = Field(default_factory=list, max_length=500)
+
+
+@router.get("/notifications/groups")
+def list_notice_groups(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    need(user, *ADMINS)
+    import json
+    result = []
+    for g in db.scalars(select(NoticeGroup).order_by(NoticeGroup.name)).all():
+        ids = json.loads(g.member_ids or "[]")
+        active = db.scalars(select(User).where(User.id.in_(ids), User.is_active.is_(True))).all() if ids else []
+        result.append({"id":g.id,"name":g.name,"member_ids":[u.id for u in active],
+                       "members":[{"id":u.id,"name":getattr(u,"full_name",None) or u.username,"role":u.role} for u in active]})
+    return result
+
+
+@router.put("/notifications/groups")
+def save_notice_group(b: NoticeGroupIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    need(user, *ADMINS)
+    import json
+    name = b.name.strip()
+    if not name:
+        raise HTTPException(400, "Group name is required")
+    if len(set(b.member_ids)) != len(b.member_ids):
+        raise HTTPException(400, "Duplicate member IDs")
+    people = db.scalars(select(User).where(User.id.in_(b.member_ids), User.is_active.is_(True))).all() if b.member_ids else []
+    if {u.id for u in people} != set(b.member_ids):
+        raise HTTPException(400, "Some members do not exist or are inactive")
+    group = db.scalar(select(NoticeGroup).where(NoticeGroup.name == name))
+    if group is None:
+        group = NoticeGroup(name=name, updated_by=user.id)
+        db.add(group)
+    group.member_ids = json.dumps(sorted(set(b.member_ids)))
+    group.updated_by = user.id
+    log(db,user,"notification_group_save","notification_group",group.id,f"name={name} members={len(b.member_ids)}")
+    db.commit()
+    return {"ok":True,"id":group.id,"member_count":len(b.member_ids)}
+
+
+@router.delete("/notifications/groups/{group_id}")
+def delete_notice_group(group_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    need(user, *ADMINS)
+    group = db.get(NoticeGroup,group_id)
+    if group is None:
+        raise HTTPException(404,"Group not found")
+    log(db,user,"notification_group_delete","notification_group",group.id,group.name)
+    db.delete(group)
+    db.commit()
+    return {"ok":True}
