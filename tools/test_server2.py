@@ -89,6 +89,8 @@ with TestClient(server.app) as c:
     idem_b = c.post("/orders", json={"title": "Повторная заявка"}, headers=idem_headers)
     check(idem_a.status_code == 200 and idem_b.status_code == 200 and idem_a.json()["id"] == idem_b.json()["id"],
           "same idempotency key returns same order")
+    idem_changed = c.post("/orders", json={"title": "Другая заявка"}, headers=idem_headers)
+    check(idem_changed.status_code == 409, "same idempotency key with changed payload is rejected")
     idem_other = c.post("/orders", json={"title": "Случайный конфликт"}, headers={**H(A), "X-Client-Request-ID": "test-idempotency-repeat-001"})
     check(idem_other.status_code == 409, "idempotency key cannot be reused across accounts")
     c.post(f"/orders/{o1['id']}/assign", json={"executor_id": ex1["id"]}, headers=H(A))
