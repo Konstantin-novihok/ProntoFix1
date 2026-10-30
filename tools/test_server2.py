@@ -192,6 +192,26 @@ with TestClient(server.app) as c:
     check(any(s["id"] == ex1["id"] and s["last_lat"] is not None and s["online"] for s in c.get("/staff", headers=H(A)).json()), "admin sees staff location (online)")
     check(c.get(f"/tracking/points?user_id={ex1['id']}", headers=H(A)).json()["distance_km"] > 0.5, "admin reads tracks")
     check(c.get(f"/tracking/points?user_id={ex1['id']}", headers=H(E2)).json()["points"] == [], "executor cannot read others' tracks")
+    # GPS regression checks: stale batches cannot roll back the current marker.
+    before_gps = next(s for s in c.get("/staff", headers=H(A)).json() if s["id"] == ex1["id"])
+    old_ts = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=2)).isoformat()
+    stale = c.post("/tracking/points", json={"points": [{"lat": 49.0, "lon": 29.0, "accuracy": 10, "ts": old_ts}]}, headers=H(E1))
+    check(stale.status_code == 200, "old GPS samples remain accepted as history")
+    after_gps = next(s for s in c.get("/staff", headers=H(A)).json() if s["id"] == ex1["id"])
+    check(after_gps["last_lat"] == before_gps["last_lat"] and after_gps["last_lon"] == before_gps["last_lon"],
+          "stale GPS batch does not roll back employee marker")
+    check(c.post("/tracking/points", json={"points": [{"lat": 50.4, "lon": 30.5, "accuracy": -1}]}, headers=H(E1)).status_code == 400,
+          "negative GPS accuracy rejected")
+    check(c.post("/tracking/points", json={"points": [{"lat": 50.4, "lon": 30.5, "speed": float("inf")}]}, headers=H(E1)).status_code == 422,
+          "non-finite JSON speed rejected")
+    check(c.post("/tracking/points", json={"points": track, "route_id": route_id}, headers=H(E2)).status_code == 403,
+          "employee cannot attach GPS points to another employee route")
+    check(c.put(f"/tracking/preferences/{ex1['id']}", json={"enabled": False}, headers=H(A)).status_code == 200,
+          "admin disables employee tracking")
+    check(c.post("/tracking/points", json={"points": [{"lat": 50.4, "lon": 30.5}]}, headers=H(E1)).status_code == 403,
+          "disabled tracking policy blocks new GPS points")
+    check(c.put(f"/tracking/preferences/{ex1['id']}", json={"enabled": True}, headers=H(A)).status_code == 200,
+          "admin re-enables employee tracking")
 
     # ───── 6. склад ─────
     it = c.post("/warehouse/items", json={"name": "Насос Askoll", "sku": "P-1", "kind": "material", "unit": "pcs", "unit_cost": 40, "min_qty": 2}, headers=H(A)).json()
