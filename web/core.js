@@ -103,6 +103,8 @@ async function syncOrderOutbox() {
     const all=outboxRead(), owned=all.filter(x=>x.owner===queueOwner());
     for(const item of owned) {
       if(item.state==='cancelled' || item.state==='synced') continue;
+      // A deterministic client/permission error needs user correction, not a retry loop.
+      if(item.state==='error' && item.retryable===false) continue;
       // A prior page may have closed while its request was in flight. With the
       // same idempotency key, retry is safer than leaving the entry stuck.
       if(item.state==='sending') {
@@ -115,8 +117,8 @@ async function syncOrderOutbox() {
       try {
         const opt={method:'POST',headers:{Authorization:'Bearer '+S.token,'Content-Type':'application/json','X-Client-Request-ID':item.id},body:JSON.stringify(item.payload)};
         const res=await fetch('/orders',opt); const data=await res.json().catch(()=>null);
-        if(!res.ok) { item.last_error=(data&&data.detail)||('HTTP '+res.status); item.state='error'; }
-        else { item.state='synced'; item.order_id=data.id; item.synced_at=new Date().toISOString(); item.last_error=''; }
+        if(!res.ok) { item.last_error=(data&&data.detail)||('HTTP '+res.status); item.state='error'; item.http_status=res.status; item.retryable=res.status===408 || res.status===429 || res.status>=500; }
+        else { item.state='synced'; item.order_id=data.id; item.synced_at=new Date().toISOString(); item.last_error=''; item.retryable=false; }
         outboxWrite(outboxRead().map(x=>x.id===item.id?item:x));
       } catch(e) { item.last_error='Результат отправки неизвестен; безопасный повтор с тем же ID'; item.state='uncertain'; outboxWrite(outboxRead().map(x=>x.id===item.id?item:x)); break; }
     }
@@ -125,7 +127,7 @@ async function syncOrderOutbox() {
 window.addEventListener('online',()=>syncOrderOutbox().then(()=>{if(S.me)toast('Синхронизация локальной очереди завершена');}).catch(()=>{}));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncOrderOutbox().catch(()=>{});});
 async function api(method, path, body) {
-  if (method === 'POST' && path === '/orders' && body && typeof body === 'object' && !(body instanceof FormData)) {\n    const reqId=outboxId();\n    await queueOrder(body,reqId);\n    const item=outboxRead().find(x=>x.id===reqId && x.owner===queueOwner());\n    item.state='sending'; item.attempted=true; item.attempted_at=new Date().toISOString();\n    outboxWrite(outboxRead().map(x=>x.id===reqId?item:x));\n    try { const opt={method,headers:{'Content-Type':'application/json','X-Client-Request-ID':reqId}}; if(S.token) opt.headers.Authorization='Bearer '+S.token; opt.body=JSON.stringify(body); const r=await fetch(path,opt); const data=await r.json().catch(()=>null); if(!r.ok){item.state='error';item.last_error=(data&&data.detail)||('HTTP '+r.status);outboxWrite(outboxRead().map(x=>x.id===reqId?item:x));let d=data&&data.detail;if(Array.isArray(d))d=d.map(x=>x.msg).join('; ');throw new Error(d||r.statusText);} item.state='synced';item.order_id=data.id;item.synced_at=new Date().toISOString();item.last_error='';outboxWrite(outboxRead().map(x=>x.id===reqId?item:x));return data; } catch(e) { if(e.http) throw e; item.state='uncertain';item.last_error='Результат отправки неизвестен; безопасный повтор с тем же ID';outboxWrite(outboxRead().map(x=>x.id===reqId?item:x));return {queued:true,client_request_id:reqId}; }\n  }\n  const opt = {method, headers: {}};
+  if (method === 'POST' && path === '/orders' && body && typeof body === 'object' && !(body instanceof FormData)) {\n    const reqId=outboxId();\n    await queueOrder(body,reqId);\n    const item=outboxRead().find(x=>x.id===reqId && x.owner===queueOwner());\n    item.state='sending'; item.attempted=true; item.attempted_at=new Date().toISOString();\n    outboxWrite(outboxRead().map(x=>x.id===reqId?item:x));\n    try { const opt={method,headers:{'Content-Type':'application/json','X-Client-Request-ID':reqId}}; if(S.token) opt.headers.Authorization='Bearer '+S.token; opt.body=JSON.stringify(body); const r=await fetch(path,opt); const data=await r.json().catch(()=>null); if(!r.ok){item.state='error';item.http_status=r.status;item.retryable=r.status===408 || r.status===429 || r.status>=500;item.last_error=(data&&data.detail)||('HTTP '+r.status);outboxWrite(outboxRead().map(x=>x.id===reqId?item:x));let d=data&&data.detail;if(Array.isArray(d))d=d.map(x=>x.msg).join('; ');throw new Error(d||r.statusText);} item.state='synced';item.order_id=data.id;item.synced_at=new Date().toISOString();item.last_error='';outboxWrite(outboxRead().map(x=>x.id===reqId?item:x));return data; } catch(e) { if(e.http) throw e; item.state='uncertain';item.last_error='Результат отправки неизвестен; безопасный повтор с тем же ID';outboxWrite(outboxRead().map(x=>x.id===reqId?item:x));return {queued:true,client_request_id:reqId}; }\n  }\n  const opt = {method, headers: {}};
   if (S.token) opt.headers.Authorization = 'Bearer ' + S.token;
   if (body instanceof FormData) opt.body = body;
   else if (body !== undefined) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
