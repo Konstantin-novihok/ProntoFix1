@@ -40,7 +40,10 @@ public final class QueueDrainWorker extends Worker {
     if(isStopped())return Result.retry();
     if("SENDING".equals(item.status))db.attachments().setState(item.id,SyncRepository.RETRY,"Recovered interrupted upload",0);
     SyncTask parent=db.tasks().get(item.taskId);
-    if(parent==null||!"UPLOADED".equals(parent.status)||parent.remoteOrderId==null){
+    if(parent==null||"ERROR".equals(parent.status)||"CANCELED".equals(parent.status)){
+     db.attachments().setState(item.id,SyncRepository.ERROR,parent==null?"Parent order task is missing":"Parent order cannot be synchronized: "+parent.status,0);continue;
+    }
+    if(!"UPLOADED".equals(parent.status)||parent.remoteOrderId==null){
      db.attachments().setState(item.id,SyncRepository.RETRY,"Waiting for confirmed server order",0);retry=true;continue;
     }
     if(parent.authToken==null||parent.authToken.isEmpty()){
@@ -70,10 +73,10 @@ public final class QueueDrainWorker extends Worker {
      int status=con.getResponseCode();String response=readResponse(con,status);
      if(status>=200&&status<300){
       String remote=new JSONObject(response).getString("id");
-      db.attachments().setUploaded(item.id,remote);
-      // Local file is removed only after Room has recorded the server receipt.
-      Attachment saved=null;for(Attachment x:db.attachments().all())if(x.id.equals(item.id)){saved=x;break;}
-      if(saved!=null&&SyncRepository.UPLOADED.equals(saved.status))file.delete();
+      int persisted=db.attachments().setUploaded(item.id,remote);
+      // Keep the local copy unless Room confirms the receipt update.
+      if(persisted>0)file.delete();
+      else {db.attachments().setState(item.id,SyncRepository.RETRY,"Server accepted upload but local receipt was not persisted; retry is idempotent",0);retry=true;}
      }else if(status==401){db.attachments().setState(item.id,SyncRepository.ERROR,"HTTP 401: требуется повторная авторизация",0);}
      else if(status==400||status==403||status==404||status==409||status==413||status==422){db.attachments().setState(item.id,SyncRepository.ERROR,"HTTP "+status+": "+response,0);}
      else{db.attachments().setState(item.id,SyncRepository.RETRY,"HTTP "+status,0);retry=true;}
