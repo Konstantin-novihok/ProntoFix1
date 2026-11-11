@@ -19,25 +19,30 @@ jobs:
       - name: Check out main
         uses: actions/checkout@v4
 
-      - name: Require persistent release signing key
+      - name: Check persistent release signing key
+        id: signing
         env:
           KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
           KS_PASS: ${{ secrets.KS_PASS }}
         run: |
           if [ -z "$KEYSTORE_B64" ] || [ -z "$KS_PASS" ]; then
-            echo "::error::Set repository Actions secrets KEYSTORE_B64 and KS_PASS before publishing signed APK updates."
-            exit 1
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::APK release skipped. Configure KEYSTORE_B64 and KS_PASS to publish installable updates."
+            exit 0
           fi
           mkdir -p "$RUNNER_TEMP/home-master-signing"
           echo "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/home-master-signing/release.keystore"
           test -s "$RUNNER_TEMP/home-master-signing/release.keystore"
+          echo "ready=true" >> "$GITHUB_OUTPUT"
 
       - name: Install Android build tools
+        if: steps.signing.outputs.ready == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y openjdk-17-jdk-headless aapt apksigner zipalign dalvik-exchange android-sdk-platform-23
 
       - name: Set unique app version
+        if: steps.signing.outputs.ready == 'true'
         id: version
         run: |
           VERSION="3.0.${GITHUB_RUN_NUMBER}"
@@ -47,6 +52,7 @@ jobs:
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
 
       - name: Build signed APK
+        if: steps.signing.outputs.ready == 'true'
         working-directory: android
         env:
           KEYSTORE: ${{ runner.temp }}/home-master-signing/release.keystore
@@ -58,6 +64,7 @@ jobs:
           apksigner verify --verbose HomeMaster.apk
 
       - name: Publish stable GitHub release
+        if: steps.signing.outputs.ready == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}
