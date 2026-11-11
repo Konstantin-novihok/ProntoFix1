@@ -468,7 +468,10 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
-        public String appVersion() { return "2.0"; }
+        public String appVersion() {
+            try { return getPackageManager().getPackageInfo(getPackageName(), 0).versionName; }
+            catch (Exception e) { return "0"; }
+        }
     }
 
     @Override
