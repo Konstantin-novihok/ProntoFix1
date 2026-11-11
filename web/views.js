@@ -410,6 +410,7 @@ route('settings', () => {
     h('div', {class: 'card'}, h('b', {}, t('profile')), h('div', {}, personName(m), ' — ', t(ROLE_KEYS[m.role])),
       h('div', {class: 'muted small'}, [m.company_name, m.website, m.address].filter(Boolean).join(' · '))),
     h('div', {class: 'card'}, h('b', {}, t('language')), selectEl(S.langs.map((l) => ({value: l.code, label: l.name})), S.lang, {onchange: (e) => setLang(e.target.value)})),
+    h('div', {class: 'card'}, h('b', {}, 'Обновление приложения'), h('p', {class: 'muted small'}, 'Проверить новую версию Home Master и загрузить APK.'), h('div', {class: 'actions'}, h('button', {class: 'ghost', onclick: guard(async () => { if (window.HomeMasterUpdates) { const u = await HomeMasterUpdates.check(true); if (!u) toast('Новых опубликованных обновлений нет.'); } else toast('Модуль обновлений ещё не загружен.', true); })}, 'Проверить обновления'), h('button', {onclick: () => { if (window.HomeMasterUpdates) HomeMasterUpdates.download(); }}, 'Скачать доступное обновление'))),
     h('div', {class: 'card'}, h('a', {class: 'btnlink', href: '#/skins'}, '🎨 ' + t('skins'))),
     track, h('div', {class: 'card'}, prov),
     h('div', {class: 'card'}, h('b', {}, t('section_documents')), h('div', {class: 'actions'},
