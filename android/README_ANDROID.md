@@ -28,6 +28,10 @@ cd android && ./build_apk.sh        # → HomeMaster.apk
 
 **Ключ подписи.** При первой сборке создаётся `keystore/release.keystore`. **Сохраните его** (в репозиторий не кладите): приложение, подписанное другим ключом, нельзя установить поверх предыдущего. Для GitHub положите ключ в секрет `KEYSTORE_B64` (`base64 -w0 keystore/release.keystore`). Свой ключ: `KEYSTORE=... KS_PASS=... KEY_ALIAS=... ./build_apk.sh`.
 
+## Обновления приложения
+
+Схема баннера, публикации APK и обязательная настройка постоянного ключа подписи описаны в [docs/ANDROID_UPDATES.md](../docs/ANDROID_UPDATES.md). Без сохранённого ключа Android не позволит установить APK поверх существующей версии.
+
 ## Что можно поменять
 * Название и иконка: `res/values/strings.xml`, `res/mipmap-*/ic_launcher.png`.
 * Поведение оболочки: `src/org/prontofix/app/MainActivity.java` (подробные комментарии в коде).
