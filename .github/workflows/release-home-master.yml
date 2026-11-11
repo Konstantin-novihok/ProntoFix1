@@ -1,0 +1,68 @@
+name: Publish Home Master Android update
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "android/**"
+      - "server/**"
+      - "web/**"
+      - ".github/workflows/release-home-master.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+
+      - name: Require persistent release signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+          KS_PASS: ${{ secrets.KS_PASS }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ] || [ -z "$KS_PASS" ]; then
+            echo "::error::Set repository Actions secrets KEYSTORE_B64 and KS_PASS before publishing signed APK updates."
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/home-master-signing"
+          echo "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/home-master-signing/release.keystore"
+          test -s "$RUNNER_TEMP/home-master-signing/release.keystore"
+
+      - name: Install Android build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openjdk-17-jdk-headless aapt apksigner zipalign dalvik-exchange android-sdk-platform-23
+
+      - name: Set unique app version
+        id: version
+        run: |
+          VERSION="3.0.${GITHUB_RUN_NUMBER}"
+          CODE="$((30000 + GITHUB_RUN_NUMBER))"
+          sed -i -E "s/android:versionCode=\"[0-9]+\"/android:versionCode=\"$CODE\"/; s/android:versionName=\"[^\"]+\"/android:versionName=\"$VERSION\"/" android/AndroidManifest.xml
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+
+      - name: Build signed APK
+        working-directory: android
+        env:
+          KEYSTORE: ${{ runner.temp }}/home-master-signing/release.keystore
+          KS_PASS: ${{ secrets.KS_PASS }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          chmod +x build_apk.sh
+          ./build_apk.sh
+          apksigner verify --verbose HomeMaster.apk
+
+      - name: Publish stable GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          TAG="v$VERSION"
+          gh release create "$TAG" android/HomeMaster.apk \
+            --title "Home Master $VERSION" \
+            --notes "Automatic Home Master Android update from main. Install only if the Android package signature matches the installed application."
