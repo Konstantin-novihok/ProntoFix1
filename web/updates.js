@@ -41,7 +41,9 @@
   }
   function show(force) {
     if (!latest || !newer(latest.version, installedVersion())) return;
-    if (!force && localStorage.getItem(DISMISSED) === latest.version) return;
+    let dismissed = false;
+    try { dismissed = localStorage.getItem(DISMISSED) === latest.version; } catch (_) {}
+    if (!force && dismissed) return;
     removeBanner();
     banner = document.createElement('section');
     banner.setAttribute('role', 'status');
