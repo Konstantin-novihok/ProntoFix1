@@ -1,44 +1,62 @@
-# Home Master — Android updates
+# Home Master — Android updates from the user's TrueNAS server
 
-## What is implemented
+## Intended architecture
 
-- The server exposes `GET /updates/latest`, backed by the public GitHub Releases API.
-- Only the latest published stable release with an APK asset is advertised. Drafts and prereleases are not shown.
-- The web interface shows an in-app banner when the published release version is newer than the installed native app version.
-- The Settings screen has a manual **Проверить обновления** action.
-- **Позже** hides the banner for that version on that device; Settings can check again.
-- On Android, choosing download uses the existing native **Save as…** flow. After saving, the user opens the APK and confirms installation in Android. The browser version opens the release asset.
+- GitHub is the source-code repository and development workspace only.
+- The running TrueNAS server is the only source of Android update metadata and APK files.
+- The Android app checks the configured server at `GET /updates/latest`.
+- The APK is downloaded from that same server at `GET /updates/download`.
+- The server never checks GitHub Releases and never deploys or restarts itself.
+- A server code update happens only when the administrator manually copies the new server files, rebuilds/redeploys the container, and starts it.
+- A phone update happens only after the administrator manually places a signed APK and its manifest in the server's persistent update folder. The phone user then chooses Download and confirms installation in Android.
 
-No push messages, device identifiers, or per-user update tracking are used. The banner is shown only while the application UI is open or when it becomes visible again.
+## Publish an Android APK to TrueNAS
 
-## Required one-time signing setup
+The GitHub Actions workflow **Manually build Home Master Android APK** is started only with Actions → workflow → Run workflow. It does not run on push and does not create a GitHub Release. It produces a downloadable artifact named `HomeMaster-APK-...`.
 
-Android accepts an update over an existing installation only when the package ID and signing certificate match, and the update has a non-lower version code. See the Android update rules:
-https://developer.android.com/google/play/app-updates
+Before running it, configure the persistent signing secrets:
+- `KEYSTORE_B64`: base64 of the long-lived release keystore
+- `KS_PASS`: keystore password
+- `KEY_ALIAS`: optional alias (defaults to `prontofix`)
 
-The release workflow intentionally skips publishing until the persistent signing secrets are configured.
+The signing key must match the certificate of the APK already installed on the phones. Do not create a new key until that has been checked. If the old signing key is unavailable, Android will not accept an in-place update; plan a carefully backed-up migration/reinstall instead.
 
-1. Obtain the exact keystore that signed the APK currently installed on users' phones. If that key is lost, Android cannot update those installations in place; affected users must uninstall and reinstall, which can erase local app data.
-2. Store the keystore outside Git. Create a base64 value, for example on Linux:
-   `base64 -w0 release.keystore`
-   On Windows PowerShell:
-   `[Convert]::ToBase64String([IO.File]::ReadAllBytes("release.keystore"))`
-3. In GitHub repository **Settings → Secrets and variables → Actions**, add:
-   - `KEYSTORE_B64` — base64 of the persistent keystore
-   - `KS_PASS` — keystore password (the build script currently uses the same value for the key password)
-   - `KEY_ALIAS` — optional; defaults to `prontofix`
-4. Push changes to `main` in `android/`, `server/` or `web/`. The release workflow builds a signed APK with a unique version and publishes a stable GitHub Release. The server picks it up within the cache window (up to five minutes).
+After downloading the APK artifact from GitHub Actions, copy it to the persistent TrueNAS application data directory:
 
-**Important signing check:** the existing APK workflow can generate a temporary key when no persistent key is supplied. Such an APK cannot be upgraded by an APK signed with a different key. Do not advertise an update until the installed APK signing certificate has been matched to the release keystore. If the original key was not preserved, plan a controlled one-time reinstall.
+```sh
+mkdir -p /path/to/persistent/app-data/updates
+cp HomeMaster.apk /path/to/persistent/app-data/updates/HomeMaster.apk
+```
 
-## Server deployment
+Create `latest.json` beside it (replace the version with the version embedded in the APK):
 
-The update endpoint is part of the new server code. Deploy/restart the TrueNAS application using the project's existing deployment procedure so that `server/updates.py` and the updated module list are active. The app banner cannot appear until the running server contains this endpoint.
+```json
+{
+  "version": "3.1.123",
+  "name": "Home Master 3.1.123",
+  "notes": "Описание изменений"
+}
+```
 
-## Current scope and limitations
+The actual mounted path is the host directory mapped to the container's `DATA_DIR` (normally the persistent `data` directory). Keep this folder persistent across container rebuilds. Do not place the APK in the source-code folder.
 
-- Delivery is an in-app banner only; no Firebase/FCM push notifications.
-- A user can dismiss a banner and later re-check from Settings.
-- APK download is user initiated. Android's package installer still asks the user to confirm installation; the current UI saves the APK first and the user opens it to continue.
-- This workflow publishes an APK release when relevant source paths change on `main`; it does not itself deploy the server container to TrueNAS.
-- The first rollout must verify the installed app's signing certificate and package version before distributing updates to existing installs.
+The server calculates SHA-256 from the local APK and returns it in `/updates/latest`. No GitHub URL is sent to the phone.
+
+## Install on the phone
+
+1. Open Home Master while connected to your server.
+2. The app checks the server and shows a banner if the server's version is newer.
+3. Tap **Скачать обновление**.
+4. Save/open the APK and approve Android's package-installer prompt.
+
+Android requires the package name and signing certificate to match and the versionCode to increase. Installation is never silent.
+
+## Server code updates — administrator controlled
+
+A push or commit to GitHub does not change the running TrueNAS server. To update the server, the administrator must manually:
+1. Back up the persistent application data and take a TrueNAS snapshot.
+2. Copy the selected `server/` and `web/` source files from the chosen GitHub revision to the NAS source directory.
+3. Rebuild/redeploy the Docker app using the existing TrueNAS procedure.
+4. Verify the service and data after startup.
+
+The update endpoint only reads local files. It has no GitHub integration, deployment trigger, or self-update mechanism.
