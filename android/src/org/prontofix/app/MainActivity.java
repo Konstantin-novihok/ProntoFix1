@@ -2,6 +2,8 @@ package org.prontofix.app;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.PendingIntent;
+import android.content.pm.PackageInstaller;
 import android.app.job.JobInfo;
 import android.app.job.JobScheduler;
 import android.content.ComponentName;
@@ -36,8 +38,12 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.security.MessageDigest;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
@@ -56,12 +62,13 @@ import java.util.List;
  * Весь интерфейс и логика живут на сервере: обновили сервер — обновилось приложение у всех.
  */
 public class MainActivity extends Activity {
-    private static final int REQ_FILE = 1, REQ_SAVE = 2, REQ_PERM_LOC = 3, REQ_PERM_CAM = 4;
+    private static final int REQ_FILE = 1, REQ_SAVE = 2, REQ_PERM_LOC = 3, REQ_PERM_CAM = 4, REQ_INSTALL_SOURCE = 5;
     private static final String PREFS = "cfg", KEY_SERVER = "server";
 
     private WebView web;
     private FrameLayout root;
     private String server = "";
+    private String pendingUpdateUrl = "", pendingUpdateSha256 = "";
 
     // ожидающие операции
     private ValueCallback<Uri[]> fileCallback;
@@ -300,6 +307,112 @@ public class MainActivity extends Activity {
         }
     }
 
+
+    // ───────────── безопасная установка обновлений APK ─────────────
+    private boolean canInstallUnknownApps() {
+        if (Build.VERSION.SDK_INT < 26) return true;
+        try {
+            Object result = getPackageManager().getClass().getMethod("canRequestPackageInstalls").invoke(getPackageManager());
+            return Boolean.TRUE.equals(result);
+        } catch (Exception e) { return false; }
+    }
+
+    private void startUpdateInstall(final String url, final String sha256) {
+        try {
+            Uri u = Uri.parse(url), base = Uri.parse(server);
+            if (u.getHost() == null || base.getHost() == null
+                    || !u.getHost().equalsIgnoreCase(base.getHost())
+                    || !u.getScheme().equalsIgnoreCase(base.getScheme())
+                    || u.getPort() != base.getPort()
+                    || !"/updates/download".equals(u.getPath())
+                    || sha256 == null || !sha256.matches("(?i)[0-9a-f]{64}")) {
+                toast("Обновление отклонено: неверный адрес или контрольная сумма.");
+                return;
+            }
+            pendingUpdateUrl = url;
+            pendingUpdateSha256 = sha256;
+            if (Build.VERSION.SDK_INT >= 26 && !canInstallUnknownApps()) {
+                Intent settings = new Intent("android.settings.MANAGE_UNKNOWN_APP_SOURCES",
+                        Uri.parse("package:" + getPackageName()));
+                startActivityForResult(settings, REQ_INSTALL_SOURCE);
+                toast("Разрешите установку обновлений для Home Master и вернитесь в приложение.");
+                return;
+            }
+            downloadAndInstallUpdate(url, sha256);
+        } catch (Exception e) {
+            toast("Не удалось начать обновление: " + e.getMessage());
+        }
+    }
+
+    private void downloadAndInstallUpdate(final String url, final String expectedSha256) {
+        new Thread(new Runnable() {
+            @Override public void run() {
+                HttpURLConnection connection = null;
+                File apk = new File(getCacheDir(), "HomeMaster-update.apk");
+                try {
+                    connection = (HttpURLConnection) new URL(url).openConnection();
+                    connection.setConnectTimeout(30000);
+                    connection.setReadTimeout(600000);
+                    connection.setInstanceFollowRedirects(true);
+                    int code = connection.getResponseCode();
+                    if (code != 200) throw new Exception("HTTP " + code);
+                    MessageDigest digest = MessageDigest.getInstance("SHA-256");
+                    InputStream in = connection.getInputStream();
+                    FileOutputStream fileOut = new FileOutputStream(apk);
+                    try {
+                        byte[] buffer = new byte[65536];
+                        int count;
+                        while ((count = in.read(buffer)) != -1) {
+                            fileOut.write(buffer, 0, count);
+                            digest.update(buffer, 0, count);
+                        }
+                        fileOut.getFD().sync();
+                    } finally {
+                        try { in.close(); } catch (Exception ignored) {}
+                        try { fileOut.close(); } catch (Exception ignored) {}
+                    }
+                    StringBuilder actual = new StringBuilder();
+                    for (byte b : digest.digest()) actual.append(String.format(java.util.Locale.US, "%02x", b & 0xff));
+                    if (!actual.toString().equalsIgnoreCase(expectedSha256))
+                        throw new Exception("SHA-256 не совпадает — установка отменена");
+
+                    PackageInstaller installer = getPackageManager().getPackageInstaller();
+                    PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);
+                    params.setAppPackageName(getPackageName());
+                    params.setSize(apk.length());
+                    int sessionId = installer.createSession(params);
+                    PackageInstaller.Session session = installer.openSession(sessionId);
+                    try {
+                        InputStream apkIn = new FileInputStream(apk);
+                        OutputStream sessionOut = session.openWrite("HomeMaster.apk", 0, apk.length());
+                        try {
+                            byte[] buffer = new byte[65536];
+                            int count;
+                            while ((count = apkIn.read(buffer)) != -1) sessionOut.write(buffer, 0, count);
+                            session.fsync(sessionOut);
+                        } finally {
+                            try { apkIn.close(); } catch (Exception ignored) {}
+                            try { sessionOut.close(); } catch (Exception ignored) {}
+                        }
+                        Intent resultIntent = new Intent(MainActivity.this, MainActivity.class);
+                        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+                        if (Build.VERSION.SDK_INT >= 31) flags |= 0x02000000; // FLAG_MUTABLE
+                        PendingIntent status = PendingIntent.getActivity(MainActivity.this, sessionId, resultIntent, flags);
+                        session.commit(status.getIntentSender());
+                    } finally {
+                        session.close();
+                    }
+                    toast("APK проверен. Подтвердите установку в системном окне Android.");
+                } catch (Exception e) {
+                    if (apk.exists()) apk.delete();
+                    toast("Ошибка обновления: " + e.getMessage());
+                } finally {
+                    if (connection != null) connection.disconnect();
+                }
+            }
+        }).start();
+    }
+
     // ───────────── сохранение файлов с выбором места ─────────────
     private void askSaveLocation(String name, String mime) {
         Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT);
@@ -321,7 +434,12 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onActivityResult(int req, int res, Intent data) {
-        if (req == REQ_FILE) {
+        if (req == REQ_INSTALL_SOURCE) {
+            String url = pendingUpdateUrl, sha = pendingUpdateSha256;
+            pendingUpdateUrl = ""; pendingUpdateSha256 = "";
+            if (canInstallUnknownApps() && url.length() > 0) downloadAndInstallUpdate(url, sha);
+            else toast("Разрешите Home Master устанавливать обновления в настройках Android.");
+        } else if (req == REQ_FILE) {
             Uri[] results = res == RESULT_OK ? WebChromeClient.FileChooserParams.parseResult(res, data) : null;
             if (fileCallback != null) fileCallback.onReceiveValue(results);
             fileCallback = null;
@@ -449,6 +567,14 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void saveUrl(final String url, final String name, final String mime) {
             runOnUiThread(new Runnable() { @Override public void run() { saveFromUrl(url, name, mime); } });
+        }
+
+        /** Скачать APK, сверить SHA-256 и передать установку системному PackageInstaller. */
+        @JavascriptInterface
+        public void installUpdate(final String url, final String sha256) {
+            runOnUiThread(new Runnable() {
+                @Override public void run() { startUpdateInstall(url, sha256); }
+            });
         }
 
         /** Не гасить экран (пока включён трекинг). */
