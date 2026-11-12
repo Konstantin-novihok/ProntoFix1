@@ -31,12 +31,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y openjdk-17-jdk-headless aapt apksigner zipalign dalvik-exchange android-sdk-platform-23
 
-      - name: Set build version
+      - name: Set build version and server manifest
+        env:
+          VERSION: 3.1.${{ github.run_number }}
         run: |
           VERSION="3.1.${GITHUB_RUN_NUMBER}"
           CODE="$((31000 + GITHUB_RUN_NUMBER))"
           sed -i -E "s/android:versionCode=\"[0-9]+\"/android:versionCode=\"$CODE\"/; s/android:versionName=\"[^\"]+\"/android:versionName=\"$VERSION\"/" android/AndroidManifest.xml
-          echo "$VERSION" > android/BUILD_VERSION.txt
+          export VERSION
+          python3 -c 'import json,os; json.dump({"version":os.environ["VERSION"],"name":"Home Master "+os.environ["VERSION"],"notes":"Обновление Home Master, подготовленное администратором."},open("android/latest.json","w",encoding="utf-8"),ensure_ascii=False,indent=2)'
 
       - name: Build signed APK
         working-directory: android
@@ -50,10 +53,12 @@ jobs:
           apksigner verify --verbose HomeMaster.apk
           apksigner verify --print-certs HomeMaster.apk
 
-      - name: Upload APK for manual transfer to TrueNAS
+      - name: Upload APK and TrueNAS update manifest
         uses: actions/upload-artifact@v4
         with:
           name: HomeMaster-APK-${{ github.run_number }}
-          path: android/HomeMaster.apk
+          path: |
+            android/HomeMaster.apk
+            android/latest.json
           if-no-files-found: error
           retention-days: 30
