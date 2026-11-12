@@ -19,7 +19,7 @@ jobs:
           KS_PASS: ${{ secrets.KS_PASS }}
         run: |
           if [ -z "$KEYSTORE_B64" ] || [ -z "$KS_PASS" ]; then
-            echo "::error::Configure KEYSTORE_B64 and KS_PASS for the same signing certificate as the installed app."
+            echo "::error::Create the permanent Home Master signing key once and save it as KEYSTORE_B64 and KS_PASS repository secrets. Keep this key for every future release; never rotate it."
             exit 1
           fi
           mkdir -p "$RUNNER_TEMP/home-master-signing"
@@ -52,6 +52,9 @@ jobs:
           ./build_apk.sh
           apksigner verify --verbose HomeMaster.apk
           apksigner verify --print-certs HomeMaster.apk
+          sha256sum HomeMaster.apk > HomeMaster.apk.sha256
+          aapt dump badging HomeMaster.apk | grep -E "^(package|sdkVersion|targetSdkVersion|application-label:)"
+          cat HomeMaster.apk.sha256
 
       - name: Upload APK and TrueNAS update manifest
         uses: actions/upload-artifact@v4
@@ -60,5 +63,6 @@ jobs:
           path: |
             android/HomeMaster.apk
             android/latest.json
+            android/HomeMaster.apk.sha256
           if-no-files-found: error
           retention-days: 30
