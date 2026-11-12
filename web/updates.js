@@ -1,7 +1,7 @@
-/* Home Master Android release banner. The server advertises only published stable APK releases. */
+/* Home Master Android updates are served by the configured TrueNAS server. */
 (() => {
   'use strict';
-  const DISMISSED = 'hm_update_dismissed_v1';
+  const DISMISSED = 'hm_update_dismissed_v2';
   let latest = null;
   let banner = null;
 
@@ -30,14 +30,14 @@
   }
   function download() {
     if (!latest || !latest.apk_url) return;
-    const name = latest.apk_name || 'HomeMaster.apk';
+    const url = new URL(latest.apk_url, window.location.origin).toString();
     try {
       if (window.AndroidBridge && typeof AndroidBridge.saveUrl === 'function') {
-        AndroidBridge.saveUrl(latest.apk_url, name, 'application/vnd.android.package-archive');
+        AndroidBridge.saveUrl(url, latest.apk_name || 'HomeMaster.apk', 'application/vnd.android.package-archive');
         return;
       }
     } catch (_) {}
-    window.open(latest.apk_url, '_blank', 'noopener');
+    window.location.assign(url);
   }
   function show(force) {
     if (!latest || !newer(latest.version, installedVersion())) return;
@@ -53,7 +53,7 @@
     const title = document.createElement('strong');
     title.textContent = 'Доступно обновление Home Master ' + latest.version;
     const desc = document.createElement('div');
-    desc.textContent = 'Установлена версия ' + (installedVersion() || 'неизвестна') + '. Новая версия готова к загрузке.';
+    desc.textContent = 'Установлена версия ' + (installedVersion() || 'неизвестна') + '. Обновление загружено на ваш сервер.';
     desc.style.cssText = 'font-size:13px;margin-top:4px';
     info.append(title, desc);
     const apply = document.createElement('button');
