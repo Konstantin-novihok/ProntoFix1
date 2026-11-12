@@ -32,6 +32,10 @@
     if (!latest || !latest.apk_url) return;
     const url = new URL(latest.apk_url, window.location.origin).toString();
     try {
+      if (window.AndroidBridge && typeof AndroidBridge.installUpdate === 'function' && latest.sha256) {
+        AndroidBridge.installUpdate(url, latest.sha256);
+        return;
+      }
       if (window.AndroidBridge && typeof AndroidBridge.saveUrl === 'function') {
         AndroidBridge.saveUrl(url, latest.apk_name || 'HomeMaster.apk', 'application/vnd.android.package-archive');
         return;
@@ -57,7 +61,7 @@
     desc.style.cssText = 'font-size:13px;margin-top:4px';
     info.append(title, desc);
     const apply = document.createElement('button');
-    apply.type = 'button'; apply.textContent = 'Скачать обновление'; apply.addEventListener('click', download);
+    apply.type = 'button'; apply.textContent = 'Скачать и установить'; apply.addEventListener('click', download);
     const later = document.createElement('button');
     later.type = 'button'; later.className = 'ghost'; later.textContent = 'Позже';
     later.addEventListener('click', () => { try { localStorage.setItem(DISMISSED, latest.version); } catch (_) {} removeBanner(); });
