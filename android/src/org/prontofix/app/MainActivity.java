@@ -92,6 +92,40 @@ public class MainActivity extends Activity {
         if (b == null || web.restoreState(b) == null) {      // обычный запуск (или состояние не удалось восстановить)
             if (server.length() == 0) showServerDialog(false); else web.loadUrl(server + "/app/");
         }
+        handleInstallResult(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleInstallResult(intent);
+    }
+
+    /** PackageInstaller reports the result through the mutable PendingIntent passed to Session.commit(). */
+    private void handleInstallResult(Intent intent) {
+        if (intent == null || !intent.hasExtra(PackageInstaller.EXTRA_STATUS)) return;
+        int status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE);
+        if (status == PackageInstaller.STATUS_PENDING_USER_ACTION) {
+            Object confirmation = intent.getParcelableExtra(Intent.EXTRA_INTENT);
+            if (confirmation instanceof Intent) {
+                try {
+                    startActivity((Intent) confirmation);
+                } catch (Exception e) {
+                    toast("Не удалось открыть подтверждение установки: " + e.getMessage());
+                }
+            } else {
+                toast("Android ожидает подтверждения установки обновления.");
+            }
+        } else if (status == PackageInstaller.STATUS_SUCCESS) {
+            toast("Home Master успешно обновлён.");
+        } else {
+            String message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE);
+            toast("Установка обновления не выполнена: " + (message == null ? "код " + status : message));
+        }
+        intent.removeExtra(PackageInstaller.EXTRA_STATUS);
+        intent.removeExtra(Intent.EXTRA_INTENT);
+        intent.removeExtra(PackageInstaller.EXTRA_STATUS_MESSAGE);
     }
 
     @Override
