@@ -1,10 +1,10 @@
-name: Manually build Home Master Android APK
+name: Build and publish Home Master Android APK
 
 on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -13,56 +13,73 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v4
 
-      - name: Require persistent Android signing key
+      - name: Load persistent signing key
         env:
           KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
           KS_PASS: ${{ secrets.KS_PASS }}
+          KEY_ALIAS_SECRET: ${{ secrets.KEY_ALIAS }}
         run: |
+          set -euo pipefail
           if [ -z "$KEYSTORE_B64" ] || [ -z "$KS_PASS" ]; then
-            echo "::error::Create the permanent Home Master signing key once and save it as KEYSTORE_B64 and KS_PASS repository secrets. Keep this key for every future release; never rotate it."
+            echo "::error::Add repository Actions secrets KEYSTORE_B64 and KS_PASS before building."
             exit 1
           fi
+          KEY_ALIAS="${KEY_ALIAS_SECRET:-prontofix}"
           mkdir -p "$RUNNER_TEMP/home-master-signing"
-          echo "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/home-master-signing/release.keystore"
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/home-master-signing/release.keystore"
           test -s "$RUNNER_TEMP/home-master-signing/release.keystore"
+          echo "KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
 
       - name: Install Android build tools
         run: |
           sudo apt-get update
           sudo apt-get install -y openjdk-17-jdk-headless aapt apksigner zipalign dalvik-exchange android-sdk-platform-23
 
-      - name: Set build version and server manifest
+      - name: Validate signing keystore
         env:
-          VERSION: 3.1.${{ github.run_number }}
+          KEYSTORE: ${{ runner.temp }}/home-master-signing/release.keystore
+          KS_PASS: ${{ secrets.KS_PASS }}
         run: |
+          set -euo pipefail
+          openssl pkcs12 -in "$KEYSTORE" -passin env:KS_PASS -info -noout >/dev/null
+          keytool -list -keystore "$KEYSTORE" -storepass "$KS_PASS" -alias "$KEY_ALIAS" >/dev/null
+          echo "Signing keystore and alias are readable."
+
+      - name: Set build version and update manifest
+        id: meta
+        run: |
+          set -euo pipefail
           VERSION="3.1.${GITHUB_RUN_NUMBER}"
           CODE="$((31000 + GITHUB_RUN_NUMBER))"
           sed -i -E "s/android:versionCode=\"[0-9]+\"/android:versionCode=\"$CODE\"/; s/android:versionName=\"[^\"]+\"/android:versionName=\"$VERSION\"/" android/AndroidManifest.xml
           export VERSION
-          python3 -c 'import json,os; json.dump({"version":os.environ["VERSION"],"name":"Home Master "+os.environ["VERSION"],"notes":"Обновление Home Master, подготовленное администратором."},open("android/latest.json","w",encoding="utf-8"),ensure_ascii=False,indent=2)'
+          python3 -c 'import json,os; json.dump({"version":os.environ["VERSION"],"name":"Home Master "+os.environ["VERSION"],"notes":"Обновление Home Master, опубликованное через GitHub Actions."},open("android/latest.json","w",encoding="utf-8"),ensure_ascii=False,indent=2)'
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Build signed APK
+      - name: Build and sign APK
         working-directory: android
         env:
           KEYSTORE: ${{ runner.temp }}/home-master-signing/release.keystore
           KS_PASS: ${{ secrets.KS_PASS }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
+          set -euo pipefail
           chmod +x build_apk.sh
           ./build_apk.sh
           apksigner verify --verbose HomeMaster.apk
           apksigner verify --print-certs HomeMaster.apk
-          sha256sum HomeMaster.apk > HomeMaster.apk.sha256
           aapt dump badging HomeMaster.apk | grep -E "^(package|sdkVersion|targetSdkVersion|application-label:)"
+          sha256sum HomeMaster.apk > HomeMaster.apk.sha256
           cat HomeMaster.apk.sha256
 
-      - name: Upload APK and TrueNAS update manifest
-        uses: actions/upload-artifact@v4
+      - name: Publish GitHub Release for the TrueNAS update server
+        uses: softprops/action-gh-release@v2
         with:
-          name: HomeMaster-APK-${{ github.run_number }}
-          path: |
+          tag_name: home-master-${{ steps.meta.outputs.version }}
+          name: Home Master ${{ steps.meta.outputs.version }}
+          target_commitish: main
+          generate_release_notes: true
+          make_latest: true
+          files: |
             android/HomeMaster.apk
             android/latest.json
             android/HomeMaster.apk.sha256
-          if-no-files-found: error
-          retention-days: 30
