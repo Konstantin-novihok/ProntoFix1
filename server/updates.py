@@ -119,8 +119,15 @@ def _load_local_update():
 
 
 def _load_update():
-    local = _load_local_update()
-    return local if local else _remote_release()
+    # Prefer the latest CI-published release. Local staging remains a fallback
+    # for offline testing or when no GitHub release exists yet.
+    try:
+        return _remote_release()
+    except HTTPException:
+        local = _load_local_update()
+        if local:
+            return local
+        raise
 
 
 @router.get("/updates/latest")
@@ -140,16 +147,22 @@ def latest_android_update():
 @router.get("/updates/download")
 def download_android_update():
     """Download the APK from local staging or proxy the latest GitHub Release."""
-    if APK_PATH.is_file() and MANIFEST_PATH.is_file():
-        _load_local_update()
-        return FileResponse(
-            str(APK_PATH),
-            media_type="application/vnd.android.package-archive",
-            filename="HomeMaster.apk",
-            headers={"Cache-Control": "no-store"},
-        )
+    try:
+        update = _remote_release()
+    except HTTPException:
+        update = None
 
-    update = _remote_release()
+    if update is None:
+        if APK_PATH.is_file() and MANIFEST_PATH.is_file():
+            _load_local_update()
+            return FileResponse(
+                str(APK_PATH),
+                media_type="application/vnd.android.package-archive",
+                filename="HomeMaster.apk",
+                headers={"Cache-Control": "no-store"},
+            )
+        raise HTTPException(status_code=404, detail="No Home Master APK is available")
+
     remote_url = update["_remote_apk_url"]
 
     def stream_apk():
