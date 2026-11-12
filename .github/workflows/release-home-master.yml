@@ -1,58 +1,44 @@
-name: Publish Home Master Android update
+name: Manually build Home Master Android APK
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "android/**"
-      - "server/**"
-      - "web/**"
-      - ".github/workflows/release-home-master.yml"
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  build-and-release:
+  build:
     runs-on: ubuntu-22.04
     steps:
-      - name: Check out main
+      - name: Check out source
         uses: actions/checkout@v4
 
-      - name: Check persistent release signing key
-        id: signing
+      - name: Require persistent Android signing key
         env:
           KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
           KS_PASS: ${{ secrets.KS_PASS }}
         run: |
           if [ -z "$KEYSTORE_B64" ] || [ -z "$KS_PASS" ]; then
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::APK release skipped. Configure KEYSTORE_B64 and KS_PASS to publish installable updates."
-            exit 0
+            echo "::error::Configure KEYSTORE_B64 and KS_PASS for the same signing certificate as the installed app."
+            exit 1
           fi
           mkdir -p "$RUNNER_TEMP/home-master-signing"
           echo "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/home-master-signing/release.keystore"
           test -s "$RUNNER_TEMP/home-master-signing/release.keystore"
-          echo "ready=true" >> "$GITHUB_OUTPUT"
 
       - name: Install Android build tools
-        if: steps.signing.outputs.ready == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y openjdk-17-jdk-headless aapt apksigner zipalign dalvik-exchange android-sdk-platform-23
 
-      - name: Set unique app version
-        if: steps.signing.outputs.ready == 'true'
-        id: version
+      - name: Set build version
         run: |
-          VERSION="3.0.${GITHUB_RUN_NUMBER}"
-          CODE="$((30000 + GITHUB_RUN_NUMBER))"
+          VERSION="3.1.${GITHUB_RUN_NUMBER}"
+          CODE="$((31000 + GITHUB_RUN_NUMBER))"
           sed -i -E "s/android:versionCode=\"[0-9]+\"/android:versionCode=\"$CODE\"/; s/android:versionName=\"[^\"]+\"/android:versionName=\"$VERSION\"/" android/AndroidManifest.xml
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          echo "$VERSION" > android/BUILD_VERSION.txt
 
       - name: Build signed APK
-        if: steps.signing.outputs.ready == 'true'
         working-directory: android
         env:
           KEYSTORE: ${{ runner.temp }}/home-master-signing/release.keystore
@@ -62,14 +48,12 @@ jobs:
           chmod +x build_apk.sh
           ./build_apk.sh
           apksigner verify --verbose HomeMaster.apk
+          apksigner verify --print-certs HomeMaster.apk
 
-      - name: Publish stable GitHub release
-        if: steps.signing.outputs.ready == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          TAG="v$VERSION"
-          gh release create "$TAG" android/HomeMaster.apk \
-            --title "Home Master $VERSION" \
-            --notes "Automatic Home Master Android update from main. Install only if the Android package signature matches the installed application."
+      - name: Upload APK for manual transfer to TrueNAS
+        uses: actions/upload-artifact@v4
+        with:
+          name: HomeMaster-APK-${{ github.run_number }}
+          path: android/HomeMaster.apk
+          if-no-files-found: error
+          retention-days: 30
