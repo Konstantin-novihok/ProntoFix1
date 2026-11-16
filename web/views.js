@@ -94,13 +94,28 @@ route('orders', async () => {
   };
   draw();
   const pending = S.me.verification === 'pending' ? h('div', {class: 'card warn'}, t('pending_verification')) : null;
-  const queuedBox = queued.length ? h('div', {class: 'card warn'}, h('b', {}, 'Локальная очередь: ' + queued.length), h('p', {class: 'muted small'}, 'Заявки сохранены на этом устройстве и ожидают синхронизации. Не очищайте данные приложения.'), ...queued.map(item => h('div', {class: 'row'}, h('span', {class: 'grow'}, (item.payload.title || 'Заявка') + ' · ' + (item.state === 'error' ? 'ошибка синхронизации' : 'ожидает отправки')), h('button', {class: 'ghost small', onclick: guard(async () => {
-      if((item.attempted && item.retryable!==false) || item.state==='sending' || item.state==='uncertain' || item.state==='synced') { toast('Отмена невозможна: отправка уже начиналась. Сначала выполните безопасную синхронизацию с тем же ID.', true); return; }
-      if(!await confirmBox('Отменить локальную заявку? Она ещё не отправлялась.')) return;
-      const entries=outboxRead().map(x=>x.id===item.id && x.owner===queueOwner()?{...x,state:'cancelled',cancelled_at:new Date().toISOString()}:x);
-      outboxWrite(entries); render();
-    })}, 'Отменить'))), h('button', {class: 'ghost', onclick: guard(async()=>{await syncOrderOutbox();render();})}, 'Синхронизировать'));
-  syncOrderOutbox().catch(()=>{});
+  const queuedBox = queued.length ? h('div', {class: 'card warn'},
+    h('b', {}, 'Локальная очередь: ' + queued.length),
+    h('p', {class: 'muted small'}, 'Заявки сохранены на этом устройстве и ожидают синхронизации. Не очищайте данные приложения.'),
+    ...queued.map((item) => {
+      const cancel = h('button', {class: 'ghost small', onclick: guard(async () => {
+        if ((item.attempted && item.retryable !== false) || ['sending', 'uncertain', 'synced'].includes(item.state)) {
+          toast('Отмена невозможна: отправка уже начиналась. Сначала выполните безопасную синхронизацию с тем же ID.', true);
+          return;
+        }
+        if (!await confirmBox('Отменить локальную заявку? Она ещё не отправлялась.')) return;
+        const entries = outboxRead().map(x => x.id === item.id && x.owner === queueOwner()
+          ? {...x, state: 'cancelled', cancelled_at: new Date().toISOString()} : x);
+        outboxWrite(entries);
+        render();
+      })}, 'Отменить');
+      return h('div', {class: 'row'},
+        h('span', {class: 'grow'}, (item.payload.title || 'Заявка') + ' · ' + (item.state === 'error' ? 'ошибка синхронизации' : 'ожидает отправки')),
+        cancel);
+    }),
+    h('button', {class: 'ghost', onclick: guard(async () => { await syncOrderOutbox(); render(); })}, 'Синхронизировать')
+  ) : null;
+  syncOrderOutbox().catch(() => {});
   return h('div', {}, pending, queuedBox, h('div', {class: 'row'}, h('h1', {class: 'grow'}, t('orders')), q, filter, h('button', {class: 'ghost', onclick: () => render()}, t('refresh'))), list);
 });
 
