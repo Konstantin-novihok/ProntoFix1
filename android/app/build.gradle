@@ -7,7 +7,7 @@ android {
     defaultConfig {
         applicationId 'org.prontofix.app'
         minSdk 21
-        targetSdk 28
+        targetSdk 35
         versionCode 3
         versionName '3.0'
     }
