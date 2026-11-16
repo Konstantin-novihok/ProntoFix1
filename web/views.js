@@ -79,7 +79,8 @@ route('register', (invite) => {
 
 // ───────────── Список заказов ─────────────
 route('orders', async () => {
-  const orders = await api('GET', '/orders');\n  const queued = outboxRead().filter(x => x.owner === queueOwner() && x.state !== 'synced' && x.state !== 'cancelled');
+  const orders = await api('GET', '/orders');
+  const queued = outboxRead().filter(x => x.owner === queueOwner() && x.state !== 'synced' && x.state !== 'cancelled');
   const filter = h('select', {onchange: () => draw()}, h('option', {value: ''}, `${t('status')}: *`), STATUSES.map((s) => h('option', {value: s}, t('st_' + s))));
   const q = h('input', {placeholder: t('search'), oninput: () => draw(), style: 'max-width:220px'});
   const list = h('div', {});
@@ -98,7 +99,9 @@ route('orders', async () => {
       if(!await confirmBox('Отменить локальную заявку? Она ещё не отправлялась.')) return;
       const entries=outboxRead().map(x=>x.id===item.id && x.owner===queueOwner()?{...x,state:'cancelled',cancelled_at:new Date().toISOString()}:x);
       outboxWrite(entries); render();
-    })}, 'Отменить'))), h('button', {class: 'ghost', onclick: guard(async()=>{await syncOrderOutbox();render();})}, 'Синхронизировать'));\n  syncOrderOutbox().catch(()=>{});\n  return h('div', {}, pending, queuedBox, h('div', {class: 'row'}, h('h1', {class: 'grow'}, t('orders')), q, filter, h('button', {class: 'ghost', onclick: () => render()}, t('refresh'))), list);
+    })}, 'Отменить'))), h('button', {class: 'ghost', onclick: guard(async()=>{await syncOrderOutbox();render();})}, 'Синхронизировать'));
+  syncOrderOutbox().catch(()=>{});
+  return h('div', {}, pending, queuedBox, h('div', {class: 'row'}, h('h1', {class: 'grow'}, t('orders')), q, filter, h('button', {class: 'ghost', onclick: () => render()}, t('refresh'))), list);
 });
 
 // ───────────── Файлы заказа: показ ─────────────
