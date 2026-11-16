@@ -624,6 +624,10 @@ class UserPatch(BaseModel):
     is_active: Optional[bool] = None
 
 
+class UserPasswordResetIn(BaseModel):
+    password: str
+
+
 @app.get("/users")
 def list_users(role: Optional[int] = None, user: User = Depends(current_user), db: Session = Depends(get_db)):
     q = select(User)
@@ -715,6 +719,21 @@ def patch_user(uid: int, b: UserPatch, user: User = Depends(current_user), db: S
         raise HTTPException(403, "Forbidden")
     db.commit()
     return user_out(t)
+
+
+@app.post("/users/{uid}/password")
+def reset_user_password(uid: int, b: UserPasswordResetIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Только владелец может задать новый пароль любой учётной записи. Исходные пароли не раскрываются."""
+    need(user, OWNER)
+    if len(b.password) < 6:
+        raise HTTPException(400, "Password must be at least 6 characters")
+    target = db.get(User, uid)
+    if not target:
+        raise HTTPException(404, "User not found")
+    target.password_hash = hash_password(b.password)
+    log(db, user, "reset_user_password", "user", target.id, "password reset by owner")
+    db.commit()
+    return {"ok": True}
 
 
 # ---------- Направления ----------
