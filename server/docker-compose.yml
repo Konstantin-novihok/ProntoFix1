@@ -17,6 +17,8 @@ services:
       GOOGLE_MAPS_KEY: ""              # ключ Google Map Tiles API (ограничьте его в Google Cloud Console)
       CUSTOM_TILE_URL: ""              # для custom: https://tiles.example.com/{z}/{x}/{y}.png
       SECRET_KEY: "${SECRET_KEY:-}"    # ключ подписи токенов и шифрования паспортных данных (СОХРАНИТЕ его!)
+      PRONTOF_API_URL: "${PRONTOF_API_URL:-}"
+      PRONTOF_INTERNAL_KEY: "${PRONTOF_INTERNAL_KEY:-}"
       # DATABASE_URL: "postgresql+psycopg2://user:pass@host/db"  # по умолчанию SQLite в /data
     volumes:
       - ${DATA_PATH:-./data}:/data     # БД, фото/видео, документы. На TrueNAS SCALE: DATA_PATH=/mnt/<пул>/prontofix/data (в файле .env)

@@ -135,6 +135,7 @@ function fileFoot(m, url) {
 // ───────────── Карточка заказа ─────────────
 route('order', async (id) => {
   const d = await api('GET', '/orders/' + id), o = d.order, role = S.me.role;
+  let videoJobs = []; try { videoJobs = await api('GET', `/orders/${id}/video-processing`); } catch (e) { /* обработчик недоступен — заказ остаётся доступен */ }
   const reload = () => render();
   const post = guard(async (action, body) => { await api('POST', `/orders/${id}/${action}`, body || {}); reload(); });
   const actions = h('div', {class: 'actions'});
@@ -188,9 +189,17 @@ route('order', async (id) => {
   if (o.distance_km) info.push([t('km'), num(o.distance_km)]);
   if (o.rating) info.push([t('rating'), '★'.repeat(o.rating)]);
   const media = d.media.map((m) => mediaItem(m));
+  const videoProcessing = videoJobs.length ? h('div', {}, h('div', {class:'row'}, h('h2', {class:'grow'}, t('video_processing')),
+    h('button', {class:'ghost small', onclick: () => render()}, t('video_refresh'))),
+    ...videoJobs.map((j) => h('div', {class:'card'},
+      h('b', {}, j.filename || 'Видео'),
+      h('div', {class:'muted small'}, `${j.status || '—'} · ${j.progress || 0}% · ${j.message || ''}`),
+      j.error ? h('p', {class:'toast err'}, j.error) : null,
+      j.transcript ? h('details', {}, h('summary', {}, t('video_transcript')), h('pre', {style:'white-space:pre-wrap;overflow-wrap:anywhere'}, j.transcript)) : null,
+      j.translated_text ? h('details', {}, h('summary', {}, t('video_translation')), h('pre', {style:'white-space:pre-wrap;overflow-wrap:anywhere'}, j.translated_text)) : null))) : null;
   const fin = [1, 2, 3, 4, 7, 6].includes(role) ? await financePanel(o) : null;
   return h('div', {}, h('div', {class: 'row'}, back('#/orders'), h('h1', {class: 'grow'}, `#${o.id} ${o.title}`)),
-    h('div', {class: 'card'}, kvList(info)), actions, mapBox, fin,
+    h('div', {class: 'card'}, kvList(info)), actions, mapBox, fin, videoProcessing,
     h('h2', {}, t('comments')), d.comments.length ? d.comments.map((c) => h('div', {class: 'comment' + (c.public ? '' : ' internal')},
       h('b', {}, c.author), ' ', h('span', {class: 'muted small'}, fmtDate(c.created_at) + (c.public ? '' : ` (${t('internal')})`)), h('div', {}, c.text))) : h('p', {class: 'muted'}, t('no_data')),
     h('h2', {}, t('media')), media.length ? h('div', {class: 'gallery'}, media) : h('p', {class: 'muted'}, t('no_data')));
@@ -254,7 +263,7 @@ async function financePanel(o) {
 
 // ───────────── Новый заказ ─────────────
 route('new', async () => {
-  const D = S.draft || (S.draft = {files: [], lat: null, lon: null});
+  const D = S.draft || (S.draft = {files: [], lat: null, lon: null, videoFile: null, videoUploadId: null, createdOrderId: null});
   const [deps, clients] = await Promise.all([api('GET', '/departments'), [1, 2, 7].includes(S.me.role) ? api('GET', '/users?role=4') : []]);
   const title = h('input', {}), descr = h('textarea', {}), address = h('input', {});
   const svc = selectEl([{value: '', label: '—'}, ...(S.pub.service_types || []).map((x) => ({value: x, label: x}))], '');
@@ -264,15 +273,53 @@ route('new', async () => {
   const showLoc = () => { loc.textContent = D.lat != null ? `${t('location')}: ${D.lat.toFixed(5)}, ${D.lon.toFixed(5)}` : t('location_none'); };
   showLoc();
   const files = fileList(D.files);
+  const videoInfo = h('div', {class: 'muted small'}, D.videoFile ? D.videoFile.name + ' · ' + fmtBytes(D.videoFile.size) : t('video_not_selected'));
+  const videoLang = selectEl([
+    {value:'uk',label:'Українська'}, {value:'ru',label:'Русский'}, {value:'de',label:'Deutsch'},
+    {value:'fr',label:'Français'}, {value:'it',label:'Italiano'}, {value:'en',label:'English'},
+    {value:'ar',label:'العربية'}, {value:'pt',label:'Português'}, {value:'es',label:'Español'},
+    {value:'bg',label:'Български'}, {value:'pl',label:'Polski'}, {value:'cs',label:'Čeština'},
+    {value:'sk',label:'Slovenčina'}, {value:'lt',label:'Lietuvių'}, {value:'lv',label:'Latviešu'}, {value:'no',label:'Norsk'}
+  ], 'uk');
+  const refreshVideoInfo = () => { videoInfo.textContent = D.videoFile ? D.videoFile.name + ' · ' + fmtBytes(D.videoFile.size) : t('video_not_selected'); };
   const submit = guard(async () => {
-    if (!title.value.trim()) throw new Error(t('title'));
-    const o = await api('POST', '/orders', {title: title.value, description: descr.value, address: address.value, lat: D.lat, lon: D.lon, service_type: svc.value,
-      department_id: dep.value ? +dep.value : null, client_id: cli.value ? +cli.value : null});
-    try { await uploadFiles(`/orders/${o.id}/media`, D.files); } catch (e) { toast(e.message, true); }
+    if (!D.createdOrderId && !title.value.trim()) throw new Error(t('title'));
+    let orderId = D.createdOrderId;
+    if (!orderId) {
+      const o = await api('POST', '/orders', {title: title.value, description: descr.value, address: address.value, lat: D.lat, lon: D.lon, service_type: svc.value,
+        department_id: dep.value ? +dep.value : null, client_id: cli.value ? +cli.value : null});
+      orderId = o.id;
+      D.createdOrderId = orderId;
+      try { await uploadFiles(`/orders/${orderId}/media`, D.files); } catch (e) { toast(e.message, true); }
+      D.files = [];
+    }
+    if (D.videoFile) {
+      videoInfo.textContent = t('video_uploading');
+      try {
+        const result = await uploadVideoForOrder(orderId, D.videoFile, videoLang.value, D.videoUploadId, (pct, part, total) => {
+          videoInfo.textContent = `${t('video_uploading')}: ${pct}% (${part}/${total})`;
+        });
+        videoInfo.textContent = t('video_queued') + ' · ' + result.job_id;
+        D.videoFile = null; D.videoUploadId = null;
+      } catch (e) {
+        videoInfo.textContent = t('video_upload_failed') + ': ' + e.message;
+        throw e;
+      }
+    }
     S.draft = null;
     toast(t('order_created'));
-    location.hash = '#/order/' + o.id;
+    location.hash = '#/order/' + orderId;
   });
+  const chooseVideo = guard(async () => {
+    const picked = await chooseFiles('video/*');
+    if (!picked.length) return;
+    const file = picked[0];
+    if (!file.size) throw new Error('Видеофайл пустой');
+    D.videoFile = file;
+    D.videoUploadId = 'hm-' + (crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(16).slice(2));
+    refreshVideoInfo();
+  });
+  const removeVideo = () => { D.videoFile = null; D.videoUploadId = null; refreshVideoInfo(); };
   return h('div', {class: 'card'}, h('h1', {}, t('new_order')),
     h('label', {}, t('title')), title, h('label', {}, t('service_type')), svc, h('label', {}, t('description')), descr, h('label', {}, t('address')), address,
     h('label', {}, t('department')), dep, [1, 2, 7].includes(S.me.role) ? [h('label', {}, t('client')), cli] : null,
@@ -283,7 +330,14 @@ route('new', async () => {
     h('div', {class: 'row'},
       h('button', {class: 'ghost', onclick: guard(async () => { D.files.push(...await chooseFiles('')); files.redraw(); })}, t('attach_file')),
       h('button', {class: 'ghost', onclick: guard(async () => { const x = await cameraCapture(); if (x) { D.files.push(x); files.redraw(); } })}, t('take_photo'))),
-    files.el, h('div', {style: 'margin-top:14px'}, h('button', {onclick: submit}, t('submit'))));
+    files.el,
+    h('div', {class:'card', style:'margin-top:14px'},
+      h('b', {}, t('video_processing')),
+      h('p', {class:'muted small'}, t('video_processing_hint')),
+      h('div', {class:'row'}, h('button', {class:'ghost', onclick: chooseVideo}, t('video_select')),
+        h('button', {class:'ghost', onclick: removeVideo, disabled: !D.videoFile}, t('video_remove'))),
+      videoInfo, h('label', {}, t('video_target_language')), videoLang),
+    h('div', {style: 'margin-top:14px'}, h('button', {onclick: submit}, D.createdOrderId ? t('video_retry_submit') : t('submit'))));
 }, [1, 2, 4, 5, 7]);
 
 // ───────────── Пользователи ─────────────

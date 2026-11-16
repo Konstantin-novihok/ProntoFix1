@@ -163,6 +163,25 @@ function toast(msg, err) {
   setTimeout(() => el.remove(), err ? 6000 : 3000);
 }
 // Загрузка файлов по одному: ошибка одного файла не мешает остальным.
+async function uploadVideoForOrder(orderId, file, targetLanguage, uploadId, onProgress) {
+  const id = uploadId || ('hm-' + (crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(16).slice(2)));
+  const chunkSize = 16 * 1024 * 1024;
+  const totalChunks = Math.ceil(file.size / chunkSize);
+  if (!totalChunks) throw new Error('Видеофайл пустой');
+  for (let index = 0; index < totalChunks; index++) {
+    const chunk = file.slice(index * chunkSize, Math.min(file.size, (index + 1) * chunkSize));
+    const response = await fetch(`/orders/${orderId}/video-processing/uploads/${id}/chunks/${index}`, {
+      method: 'PUT', headers: {Authorization: 'Bearer ' + S.token}, body: chunk
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.detail || ('Ошибка загрузки части ' + (index + 1) + ': HTTP ' + response.status));
+    if (onProgress) onProgress(Math.round((index + 1) / totalChunks * 100), index + 1, totalChunks);
+  }
+  return await api('POST', `/orders/${orderId}/video-processing/uploads/${id}/complete`, {
+    filename: file.name, total_chunks: totalChunks, source_language: null, target_language: targetLanguage
+  });
+}
+
 async function uploadFiles(path, files, extra) {
   const failed = [];
   for (const f of files) {
