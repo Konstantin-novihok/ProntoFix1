@@ -280,21 +280,23 @@ with TestClient(server.app) as c:
     check(c.get("/chat", headers=H(OB)).status_code == 200 and c.post("/chat", json={"text": "x"}, headers=H(OB)).status_code == 403, "observer reads chat, cannot write")
 
     # ───── 8. менеджер хранилища ─────
-    check(c.get("/storage/files", headers=H(E1)).status_code == 403, "storage manager is admin only")
+    check(c.get("/storage/files", headers=H(E1)).status_code == 403, "storage manager is superuser only")
+    check(c.get("/storage/files", headers=H(A)).status_code == 403, "admin cannot manage file library")
     c.post(f"/orders/{o1['id']}/media", files={"file": ("big.mp4", b"x" * 20000, "video/mp4")}, headers=H(CL))
     c.post(f"/orders/{o1['id']}/media", files={"file": ("spec.xlsx", b"PK" + b"1" * 100, "application/octet-stream")}, headers=H(E1))
     check(c.post(f"/orders/{o1['id']}/media", files={"file": ("a.bat", b"del", "text/plain")}, headers=H(CL)).status_code == 400, "bat blocked in orders")
-    L = c.get("/storage/files", headers=H(A)).json(); check(L["count"] >= 7 and {r["source"] for r in L["items"]} >= {"order", "document", "chat", "warehouse"}, "storage lists all sources")
-    by = lambda s, d: [r[{"date": "date", "size": "size", "name": "name", "sender": "sender"}[s]] for r in c.get(f"/storage/files?sort={s}&dir={d}", headers=H(A)).json()["items"]]
+    L = c.get("/storage/files", headers=H(owner)).json(); check(L["count"] >= 7 and {r["source"] for r in L["items"]} >= {"order", "document", "chat", "warehouse"}, "storage lists all sources")
+    by = lambda s, d: [r[{"date": "date", "size": "size", "name": "name", "sender": "sender"}[s]] for r in c.get(f"/storage/files?sort={s}&dir={d}", headers=H(owner)).json()["items"]]
     sz = by("size", "desc"); check(sz == sorted(sz, reverse=True) and sz[0] >= 20000, "sort by size")
     nm = [x.lower() for x in by("name", "asc")]; check(nm == sorted(nm), "sort by name")
     sd = [x.lower() for x in by("sender", "asc")]; check(sd == sorted(sd), "sort by sender")
     dd = by("date", "asc"); check(dd == sorted(dd), "sort by date")
-    check(all("big" in r["name"] for r in c.get("/storage/files?q=big", headers=H(A)).json()["items"]), "search")
-    victim = next(r for r in L["items"] if r["name"] == "big.mp4"); path_before = c.get(f"/storage/files/{victim['key']}/download", headers=H(A)); check(path_before.status_code == 200, "admin downloads any file")
+    check(all("big" in r["name"] for r in c.get("/storage/files?q=big", headers=H(owner)).json()["items"]), "search")
+    victim = next(r for r in L["items"] if r["name"] == "big.mp4"); path_before = c.get(f"/storage/files/{victim['key']}/download", headers=H(owner)); check(path_before.status_code == 200, "superuser downloads any file")
     check(c.delete(f"/storage/files/{victim['key']}", headers=H(E1)).status_code == 403, "executor cannot delete files")
-    check(c.delete(f"/storage/files/{victim['key']}", headers=H(A)).status_code == 200 and c.get(f"/storage/files/{victim['key']}/download", headers=H(A)).status_code == 404, "admin deletes any file")
-    chatf = next(r for r in L["items"] if r["source"] == "chat"); c.delete(f"/storage/files/{chatf['key']}", headers=H(A))
+    check(c.delete(f"/storage/files/{victim['key']}", headers=H(A)).status_code == 403, "admin cannot delete library files")
+    check(c.delete(f"/storage/files/{victim['key']}", headers=H(owner)).status_code == 200 and c.get(f"/storage/files/{victim['key']}/download", headers=H(owner)).status_code == 404, "superuser deletes files")
+    chatf = next(r for r in L["items"] if r["source"] == "chat"); c.delete(f"/storage/files/{chatf['key']}", headers=H(owner))
     check(any("[file deleted]" in m["text"] or m["file"] is None for m in c.get("/chat", headers=H(A)).json() if m["kind"] == "file"), "chat message keeps placeholder after file deletion")
     check(c.delete(f"/chat/{mm[0]['id']}", headers=H(A)).status_code == 200 and c.get("/chat", headers=H(A)).json()[0]["deleted"], "admin deletes chat message")
 

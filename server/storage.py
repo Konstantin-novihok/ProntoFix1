@@ -221,16 +221,17 @@ async def storage_files(sort: str = "date", dir: str = "desc", q: str = "", sour
     """Единая библиотека Home Master и видеоархива; управляет только суперпользователь."""
     need(user, OWNER)
     rows = all_files(db)
-    remote = await _prontof_json("GET", "/internal/library")
-    for video in remote.json():
-        video_id = str(video.get("id", ""))
-        if not video_id:
-            continue
-        name = video.get("filename") or "video"
-        mime = mimetypes.guess_type(name)[0] or "application/octet-stream"
-        rows.append(dict(key="v:" + video_id, name=name, size=int(video.get("size_bytes") or 0), mime=mime,
-                         sender="Home Master", sender_id=None, date=video.get("created_at") or "",
-                         source="video", ref=video.get("order_id"), kind="video"))
+    if PRONTOF_API_URL and PRONTOF_INTERNAL_KEY:
+        remote = await _prontof_json("GET", "/internal/library")
+        for video in remote.json():
+            video_id = str(video.get("id", ""))
+            if not video_id:
+                continue
+            name = video.get("filename") or "video"
+            mime = mimetypes.guess_type(name)[0] or "application/octet-stream"
+            rows.append(dict(key="v:" + video_id, name=name, size=int(video.get("size_bytes") or 0), mime=mime,
+                             sender="Home Master", sender_id=None, date=video.get("created_at") or "",
+                             source="video", ref=video.get("order_id"), kind="video"))
     if source:
         rows = [r for r in rows if r["source"] == source]
     if q.strip():
