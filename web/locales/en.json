@@ -454,5 +454,9 @@
   "video_refresh": "Refresh status",
   "video_transcript": "Recognized text",
   "video_translation": "Translation",
-  "video_retry_submit": "Retry video upload"
+  "video_retry_submit": "Retry video upload",
+  "src_video": "Video archive",
+  "rename": "Rename",
+  "rename_file": "Rename file",
+  "file_name": "File name"
 }

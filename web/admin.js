@@ -14,7 +14,7 @@ route('admin', () => {
     ['skins', '🎨', 'skins', 'tile_skins'], ['audit', '📜', 'history', 'tile_audit'],
   ];
   return h('div', {}, h('h1', {}, t('admin')), h('p', {class: 'muted'}, `${personName(S.me)} — ${t(ROLE_KEYS[S.me.role])}`),
-    h('div', {class: 'tiles'}, tiles.map(([r, icon, title, desc]) => h('a', {class: 'tile', href: '#/' + r}, h('div', {class: 'ticon'}, icon), h('b', {}, t(title)), h('span', {class: 'muted small'}, t(desc))))));
+    h('div', {class: 'tiles'}, tiles.filter(([r]) => r !== 'files' || S.me.role === 1).map(([r, icon, title, desc]) => h('a', {class: 'tile', href: '#/' + r}, h('div', {class: 'ticon'}, icon), h('b', {}, t(title)), h('span', {class: 'muted small'}, t(desc))))));
 }, [1, 7]);
 
 // ───────────── Финансы: предоплата заказчиков ─────────────
@@ -144,7 +144,7 @@ route('files', async () => {
   const st = {sort: 'date', dir: 'desc', q: '', source: ''};
   const out = h('div', {});
   const q = h('input', {placeholder: t('search'), style: 'max-width:240px', oninput: () => { st.q = q.value; load(); }});
-  const src = selectEl([{value: '', label: t('all')}, ...['order', 'document', 'chat', 'warehouse'].map((s) => ({value: s, label: t('src_' + s)}))], '', {onchange: () => { st.source = src.value; load(); }});
+  const src = selectEl([{value: '', label: t('all')}, ...['order', 'document', 'chat', 'warehouse', 'video'].map((s) => ({value: s, label: t('src_' + s)}))], '', {onchange: () => { st.source = src.value; load(); }});
   const cols = ['name', 'source', 'sender', 'size', 'date'];
   const load = guard(async () => {
     const d = await api('GET', `/storage/files?sort=${st.sort}&dir=${st.dir}&q=${encodeURIComponent(st.q)}&source=${st.source}`);
@@ -154,13 +154,14 @@ route('files', async () => {
       ...Object.entries(d.by_source).map(([k, v]) => h('div', {class: 'kpi'}, h('div', {class: 'muted small'}, t('src_' + k)), h('div', {class: 'kpival'}, fmtBytes(v))))),
     table([t('file'), t('source'), t('sender'), t('size'), t('date'), ''], d.items.map((f) => [h('span', {}, fileIcon(f.name, f.mime), ' ', h('a', {href: storageUrl(f.key), target: '_blank', rel: 'noopener'}, f.name)), t('src_' + f.source), f.sender, fmtBytes(f.size), fmtDate(f.date),
       h('span', {class: 'row'}, h('button', {class: 'ghost small', onclick: guard(() => saveUrl(storageUrl(f.key), f.name, f.mime))}, t('save_as')),
+        f.key.startsWith('v:') ? h('button', {class: 'ghost small', onclick: guard(async () => { const v = await formModal(t('rename_file'), [{key:'name',label:'file_name',value:f.name}]); if (v && v.name.trim()) { await api('PATCH', '/storage/files/' + encodeURIComponent(f.key), {name:v.name.trim()}); load(); } })}, t('rename')) : null,
         h('button', {class: 'danger small', onclick: guard(async () => { if (await confirmBox(`${t('delete')}: ${f.name}?`)) { await api('DELETE', '/storage/files/' + encodeURIComponent(f.key)); load(); } })}, '🗑'))]),
       {sortable, sortCol: Object.entries(map).find(([, v]) => v === st.sort)?.[0] * 1, sortDir: st.dir, numCols: [3],
         onSort: (i) => { const key = map[i]; if (st.sort === key) st.dir = st.dir === 'asc' ? 'desc' : 'asc'; else { st.sort = key; st.dir = key === 'name' || key === 'sender' ? 'asc' : 'desc'; } load(); }}));
   });
   load();
   return h('div', {}, pageHead(t('files'), back('#/admin', t('admin'))), h('p', {class: 'muted small'}, t('files_hint')), h('div', {class: 'row'}, q, src), out);
-}, [1, 7]);
+}, [1]);
 
 // ───────────── Направления ─────────────
 route('departments', async () => {

@@ -454,5 +454,9 @@
   "video_refresh": "Оновити стан",
   "video_transcript": "Розпізнаний текст",
   "video_translation": "Переклад",
-  "video_retry_submit": "Повторити надсилання відео"
+  "video_retry_submit": "Повторити надсилання відео",
+  "src_video": "Відеоархів",
+  "rename": "Перейменувати",
+  "rename_file": "Перейменувати файл",
+  "file_name": "Назва файлу"
 }

@@ -454,5 +454,9 @@
   "video_refresh": "Atualizar estado",
   "video_transcript": "Texto reconhecido",
   "video_translation": "Tradução",
-  "video_retry_submit": "Tentar enviar o vídeo novamente"
+  "video_retry_submit": "Tentar enviar o vídeo novamente",
+  "src_video": "Arquivo de vídeo",
+  "rename": "Renomear",
+  "rename_file": "Renomear arquivo",
+  "file_name": "Nome do arquivo"
 }

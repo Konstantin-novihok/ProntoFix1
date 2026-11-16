@@ -7,15 +7,19 @@
   Общий чат         только сотрудники: текст, файлы, геопозиция, ссылка на складскую позицию. История хранится на сервере.
 """
 import datetime as dt
+import mimetypes
 import os
+from urllib.parse import quote
 from typing import Optional
 
+import httpx
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, func, select
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
-from server import (ADMINS, EXECUTOR, EXT_KIND, HEAD, MEDIA_DIR, DOCS_DIR, OBSERVER, STAFF_ROLES, Base, Media, User,
+from server import (ADMINS, EXECUTOR, EXT_KIND, HEAD, MEDIA_DIR, DOCS_DIR, OBSERVER, OWNER, STAFF_ROLES, Base, Media, User,
                     UserDoc, check_upload, current_user, file_response, get_db, guess_mime, log, need, now, save_stream,
                     DATA_DIR)
 
@@ -23,6 +27,23 @@ router = APIRouter()
 FILES_DIR = os.path.join(DATA_DIR, "files")
 os.makedirs(FILES_DIR, exist_ok=True)
 CHAT_WRITERS = (*ADMINS, HEAD, EXECUTOR)        # наблюдатель в чате только читает
+PRONTOF_API_URL = os.getenv("PRONTOF_API_URL", "").rstrip("/")
+PRONTOF_INTERNAL_KEY = os.getenv("PRONTOF_INTERNAL_KEY", "")
+
+def _prontof_headers():
+    if not PRONTOF_API_URL or not PRONTOF_INTERNAL_KEY:
+        raise HTTPException(503, "Видеоархив временно недоступен")
+    return {"X-ProntoF-Internal-Key": PRONTOF_INTERNAL_KEY}
+
+async def _prontof_json(method: str, path: str, **kwargs):
+    try:
+        async with httpx.AsyncClient(timeout=None) as client:
+            response = await client.request(method, PRONTOF_API_URL + path, headers=_prontof_headers(), **kwargs)
+    except httpx.HTTPError:
+        raise HTTPException(502, "Видеоархив временно недоступен")
+    if response.status_code >= 400:
+        raise HTTPException(response.status_code, "Операция с видеофайлом не выполнена")
+    return response
 
 
 class StoredFile(Base):
@@ -196,10 +217,20 @@ def all_files(db: Session):
 
 
 @router.get("/storage/files")
-def storage_files(sort: str = "date", dir: str = "desc", q: str = "", source: str = "", user: User = Depends(current_user), db: Session = Depends(get_db)):
-    """Сортировка: date | size | name | sender (по возрастанию asc / убыванию desc)."""
-    need(user, *ADMINS)
+async def storage_files(sort: str = "date", dir: str = "desc", q: str = "", source: str = "", user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Единая библиотека Home Master и видеоархива; управляет только суперпользователь."""
+    need(user, OWNER)
     rows = all_files(db)
+    remote = await _prontof_json("GET", "/internal/library")
+    for video in remote.json():
+        video_id = str(video.get("id", ""))
+        if not video_id:
+            continue
+        name = video.get("filename") or "video"
+        mime = mimetypes.guess_type(name)[0] or "application/octet-stream"
+        rows.append(dict(key="v:" + video_id, name=name, size=int(video.get("size_bytes") or 0), mime=mime,
+                         sender="Home Master", sender_id=None, date=video.get("created_at") or "",
+                         source="video", ref=video.get("order_id"), kind="video"))
     if source:
         rows = [r for r in rows if r["source"] == source]
     if q.strip():
@@ -233,8 +264,33 @@ def _locate(db: Session, key: str):
 
 
 @router.get("/storage/files/{key}/download")
-def storage_download(key: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    need(user, *ADMINS)
+async def storage_download(key: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    need(user, OWNER)
+    if key.startswith("v:"):
+        video_id = key[2:]
+        if not video_id or "/" in video_id or "\\" in video_id:
+            raise HTTPException(400, "Некорректный идентификатор видео")
+        _prontof_headers()
+        client = httpx.AsyncClient(timeout=None)
+        try:
+            req = client.build_request("GET", PRONTOF_API_URL + "/internal/videos/" + video_id + "/source", headers=_prontof_headers())
+            response = await client.send(req, stream=True)
+        except httpx.HTTPError:
+            await client.aclose()
+            raise HTTPException(502, "Видеоархив временно недоступен")
+        if response.status_code >= 400:
+            await response.aclose()
+            await client.aclose()
+            raise HTTPException(response.status_code, "Видео не найдено")
+        async def video_stream():
+            try:
+                async for chunk in response.aiter_bytes(1024 * 1024):
+                    yield chunk
+            finally:
+                await response.aclose()
+                await client.aclose()
+        return StreamingResponse(video_stream(), media_type=response.headers.get("content-type", "application/octet-stream"),
+                                 headers={"Content-Disposition": response.headers.get("content-disposition", "attachment")})
     obj, path = _locate(db, key)
     if not obj or not os.path.exists(path):
         raise HTTPException(404)
@@ -244,10 +300,37 @@ def storage_download(key: str, user: User = Depends(current_user), db: Session =
     return file_response(path, getattr(obj, "original"), "doc" if mime == "application/pdf" else EXT_KIND.get(os.path.splitext(path)[1].lstrip("."), "doc"), mime)
 
 
+@router.patch("/storage/files/{key}")
+async def storage_rename(key: str, data: dict, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    need(user, OWNER)
+    if not key.startswith("v:"):
+        raise HTTPException(400, "Переименование доступно для видеоархива")
+    video_id = key[2:]
+    name = str(data.get("name") or "").strip()
+    if not name or len(name) > 255 or "/" in name or "\\" in name:
+        raise HTTPException(400, "Некорректное имя файла")
+    await _prontof_json("PATCH", "/internal/videos/" + video_id, json={"filename": name})
+    log(db, user, "video_library_rename", "video", None, video_id + " " + name)
+    db.commit()
+    return {"ok": True}
 @router.delete("/storage/files/{key}")
-def storage_delete(key: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    """Администратор удаляет любой файл: с диска и из базы. Сообщение чата остаётся с пометкой «файл удалён»."""
-    need(user, *ADMINS)
+async def storage_delete(key: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Только суперпользователь удаляет файлы из общей библиотеки."""
+    need(user, OWNER)
+    if key.startswith("v:"):
+        video_id = key[2:]
+        if not video_id or "/" in video_id or "\\" in video_id:
+            raise HTTPException(400, "Некорректный идентификатор видео")
+        response = await _prontof_json("DELETE", "/internal/videos/" + video_id)
+        deleted_jobs = response.json().get("job_ids", [])
+        if deleted_jobs:
+            from video_processing import OrderVideoJob
+            for row in db.scalars(select(OrderVideoJob).where(OrderVideoJob.remote_job_id.in_(deleted_jobs))).all():
+                log(db, user, "video_library_delete", "order", row.order_id, row.filename)
+                db.delete(row)
+        log(db, user, "storage_delete", "video", None, video_id)
+        db.commit()
+        return {"ok": True}
     obj, path = _locate(db, key)
     if not obj:
         raise HTTPException(404)
