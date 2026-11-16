@@ -283,12 +283,17 @@ route('users', async () => {
       if (me.role !== 1 && [1, 7].includes(u.role)) return;
       const opts = [{label: t('change_role'), value: 'role'}, {label: t('change_department'), value: 'dep'}, {label: t('work_profile'), value: 'prof'},
         {label: t('toggle_active'), value: 'act'}, {label: t('view_private'), value: 'priv'}, {label: t('bonus_fine'), value: 'adj'}];
+      if (me.role === 1) opts.push({label: 'Сбросить пароль', value: 'password'});
       if (u.employment === 'external') opts.splice(3, 0, {label: t('verify'), value: 'ver'});
       const a = await pick(personName(u), opts);
       if (a === 'role') { const r = await rolePick(); if (r) { await api('PATCH', '/users/' + u.id, {role: r}); reload(); } }
       if (a === 'dep') { const ds = await api('GET', '/departments'); const d = await pick(t('department'), [{label: t('none'), value: 0}, ...ds.map((x) => ({label: x.name, value: x.id}))]);
         if (d !== undefined) { await api('PATCH', '/users/' + u.id, {department_id: d || null}); reload(); } }
       if (a === 'act') { await api('PATCH', '/users/' + u.id, {is_active: !u.is_active}); reload(); }
+      if (a === 'password') {
+        const v = await formModal('Новый пароль: ' + personName(u), [{key: 'password', label: 'Новый пароль', type: 'password'}]);
+        if (v && v.password) { await api('POST', '/users/' + u.id + '/password', {password: v.password}); toast('Пароль изменён'); }
+      }
       if (a === 'priv') await showPrivate(u);
       if (a === 'prof') await editProfile(u, reload);
       if (a === 'ver') await verifyDialog(u, reload);
