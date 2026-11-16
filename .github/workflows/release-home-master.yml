@@ -13,6 +13,27 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v4
 
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK platform and build tools
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+          echo "$ANDROID_HOME/build-tools/35.0.0" >> "$GITHUB_PATH"
+
       - name: Load persistent signing key
         env:
           KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
@@ -30,11 +51,6 @@ jobs:
           test -s "$RUNNER_TEMP/home-master-signing/release.keystore"
           echo "KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
 
-      - name: Install Android build tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y openjdk-17-jdk-headless aapt apksigner zipalign dalvik-exchange android-sdk-platform-23
-
       - name: Validate signing keystore
         env:
           KEYSTORE: ${{ runner.temp }}/home-master-signing/release.keystore
@@ -45,29 +61,34 @@ jobs:
           keytool -list -keystore "$KEYSTORE" -storepass "$KS_PASS" -alias "$KEY_ALIAS" >/dev/null
           echo "Signing keystore and alias are readable."
 
-      - name: Set build version and update manifest
+      - name: Set build version
         id: meta
         run: |
           set -euo pipefail
           VERSION="3.1.${GITHUB_RUN_NUMBER}"
           CODE="$((31000 + GITHUB_RUN_NUMBER))"
-          sed -i -E "s/android:versionCode=\"[0-9]+\"/android:versionCode=\"$CODE\"/; s/android:versionName=\"[^\"]+\"/android:versionName=\"$VERSION\"/" android/AndroidManifest.xml
+          sed -i -E "s/versionCode [0-9]+/versionCode $CODE/; s/versionName '[^']+'/versionName '$VERSION'/" android/app/build.gradle
           export VERSION
           python3 -c 'import json,os; json.dump({"version":os.environ["VERSION"],"name":"Home Master "+os.environ["VERSION"],"notes":"Обновление Home Master, опубликованное через GitHub Actions."},open("android/latest.json","w",encoding="utf-8"),ensure_ascii=False,indent=2)'
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Build and sign APK
+      - name: Build Android release APK with AndroidX dependencies
+        run: |
+          set -euo pipefail
+          cd android
+          gradle --no-daemon --stacktrace :app:assembleRelease
+          test -s app/build/outputs/apk/release/app-release-unsigned.apk
+
+      - name: Sign and verify APK
         working-directory: android
         env:
           KEYSTORE: ${{ runner.temp }}/home-master-signing/release.keystore
           KS_PASS: ${{ secrets.KS_PASS }}
         run: |
           set -euo pipefail
-          chmod +x build_apk.sh
-          ./build_apk.sh
+          apksigner sign --ks "$KEYSTORE" --ks-pass "env:KS_PASS" --key-pass "env:KS_PASS" --ks-key-alias "$KEY_ALIAS" --out HomeMaster.apk app/build/outputs/apk/release/app-release-unsigned.apk
           apksigner verify --verbose HomeMaster.apk
           apksigner verify --print-certs HomeMaster.apk
-          aapt dump badging HomeMaster.apk | grep -E "^(package|sdkVersion|targetSdkVersion|application-label:)"
           sha256sum HomeMaster.apk > HomeMaster.apk.sha256
           cat HomeMaster.apk.sha256
 
